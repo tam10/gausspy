@@ -15,7 +15,8 @@ If we have reached a final geometry following a geometry optimization and the wa
 """
 
 
-import os, general_utils, time, copy, pbs
+import os, general_utils, time, copy
+from pbs_util import pbs
 
 server = 'login.cx1.hpc.ic.ac.uk'
 username = 'cjf05'

@@ -26,7 +26,7 @@ See accompanying license files for details.
 import os
 import glob
 import warnings
-import pbs
+from pbs_util import pbs
 import gaussian_hacks
 import numpy as np
 import oniom_utils
@@ -281,7 +281,7 @@ class Gaussian(Calculator):
     #todo
     def set_zmatrix(self, atoms, coord='',repetitions=0, delta=0):
         """Converts input to use a zmatrix instead of cartesian coordinates, optionally includes parameters for scanning across a particular coordinate"""
-        self._zmatrix = to_zmatrix(atoms.get_positions())
+        #self._zmatrix = to_zmatrix(atoms.get_positions())
         return
 
     def set_orbital_swaps(self, original_a_orbitals, swapped_a_orbitals, original_b_orbitals=None, swapped_b_orbitals=None):
@@ -817,10 +817,10 @@ class Gaussian(Calculator):
         extra = []
 
         opt_string = self.route_self_params.get('opt', '').lower()
-        extra_inp_str =  self.extra_params.get('extra_input','')
+        extra_inp_str = self.extra_params.get('extra_input', '')
 
         if 'qst3' in opt_string or 'qst2' in opt_string:
-            extra.append(_get_qst_extra)
+            extra.append(self._get_qst_extra())
         if extra_inp_str:
             extra.append('\n' + extra_inp_str)
 
@@ -842,7 +842,7 @@ class Gaussian(Calculator):
             final_config = 'Reactant configuration\n\n' + self._get_mol_details(reactants) + self._get_mod_redundant() + '\n'
 
         else:
-            Raise(RuntimeError('Unknown extra qst input specified'))
+            raise(RuntimeError('Unknown extra qst input specified'))
 
         return final_config
 
@@ -936,10 +936,12 @@ class Gaussian(Calculator):
         if log and exitcode != 0:
             raise RuntimeError('Unable to get file {f} from server, scp exited with {s}'.format(f=filename, s=exitcode))
 
+    #todo
     def gen_fchk(self, frc=False):
         """generates fchk file from chk point file for the molecule specified assumes chk point file exists in the scratch directory"""
 
-        ssh, sftp = pbs.connect_server(ssh=True,sftp=True)
+        ssh, sftp = pbs.connect_server(ssh=True, sftp=True)
+        serv_file = ''
         try:
             sftp.stat(serv_file)
             fchk_exists = True
@@ -954,7 +956,7 @@ class Gaussian(Calculator):
             warnings.warn('.fchk file already generated, overwriting')
 
         if not fchk_exists or frc:
-            i,o,e = ssh.exec_command('/home/gaussian-devel/gaussiandvh13_pgi_118/gdv/formchk {fn}'.format(fn= self._get_scratch_dir() + '/' + c.calc.label+'.chk'))
+            i,o,e = ssh.exec_command('/home/gaussian-devel/gaussiandvh13_pgi_118/gdv/formchk {fn}'.format(fn=self._get_scratch_dir() + '/' + self.label+'.chk'))
             formchk_error = e.readlines()
             ssh.close()
             return not bool(formchk_error)
@@ -1121,6 +1123,7 @@ class Gaussian(Calculator):
             self.set_time()
         return self._time
 
+    #todo
     def set_time(self):
         command = "tail -n4 '{fl}'".format(fl=self.log)
         p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
@@ -1130,10 +1133,10 @@ class Gaussian(Calculator):
         try:
             time_line = next(l for l in last_lines if l[1:14] == "Job cpu time:")
 
-            days = float(line.split()[3])
-            hours = float(line.split()[5])
-            minutes = float(line.split()[7])
-            seconds = float(line.split()[9])
+            days = float(time_line.split()[3])
+            hours = float(time_line.split()[5])
+            minutes = float(time_line.split()[7])
+            seconds = float(time_line.split()[9])
 
             self._time =  days*24 + hours + minutes/60 + seconds/3600
         except StopIteration:
@@ -1390,7 +1393,8 @@ class Gaussian(Calculator):
         return len(self.max_data['scfenergies'])
 
     def get_oniom_components(self, **kwargs):
-        return oniom_comp_calcs(self.atoms, **kwargs)
+        import oniom_utils
+        return oniom_utils.oniom_comp_calcs(self.atoms, **kwargs)
 
     #remember that calling this changes the label - even if you don't run the calculation you can't call this multiple times with no consequence
     def restart(self, label = "", add_label="", remove_label="", start=False, from_calc=None, no_old_chk= False, auto_opt=False, ioplist=False, **kwargs):
