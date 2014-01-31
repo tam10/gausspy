@@ -476,7 +476,7 @@ class Gaussian(Calculator):
 
         mol_details = ''
 
-        charge = sum(atoms.get_charges())
+        charge = sum(atoms.get_initial_charges())
         mol_details += '%i %i\n' % (charge, self.multiplicity)
 
         if 'check' in self.route_self_params['geom'].lower():
@@ -867,10 +867,9 @@ class Gaussian(Calculator):
 
     def write_input(self, filename, atoms):
         """Writes the input file"""
-        inputfile = open(filename, 'w')
-        input_str = self._get_input(atoms)
-        inputfile.write(input_str)
-        inputfile.close()
+        with open(filename, 'w') as inputfile:
+            input_str = self._get_input(atoms)
+            inputfile.write(input_str)
 
         # sends input file to server
         if not self.job_params['version'] == 'direct_g09':
