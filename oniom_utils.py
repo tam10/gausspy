@@ -1,6 +1,9 @@
 __author__ = 'clyde'
 
-from ase.calculators.gaussian import Gaussian
+try:
+    from gaussian import Gaussian
+except ImportError:
+    pass
 from warnings import warn
 import itertools
 import copy

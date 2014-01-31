@@ -1,13 +1,8 @@
 """
-Gaussian calculator for ASE modified by:
+Gaussian calculator for Gausspy by:
 
     Clyde Fare
     Imperial College London
-
-    originally written by:
-
-    Glen R. Jenness
-    University of Wisconsin - Madison
 
 Based off of code written by:
 
@@ -24,7 +19,6 @@ See accompanying license files for details.
 """
 
 import os
-import glob
 import warnings
 from pbs_util import pbs
 import gaussian_hacks
@@ -33,8 +27,11 @@ import oniom_utils
 from subprocess import Popen, PIPE
 from ase.io import read as ase_read
 from ase.io.gaussian_reader import GaussianReader as GR
+from ase.io.gaussian import read_gaussian_out
 from ase import Atoms
 from ase.calculators.general import Calculator
+from ASE_utils import to_molmod
+from fchk_utils import FCHK
 
 """
 Gaussian has two generic classes of keywords:  link0 and route.
@@ -672,7 +669,6 @@ class Gaussian(Calculator):
     #i.e. if we make a bond very long molmod won't recognise the two atoms as neighbours - this isn't usually a problem as we don't normally cut between atoms that are involved
     # in a transition state
     def get_links(self, atoms, layers):
-        from ASE_utils import to_molmod
         mm_atoms = to_molmod(atoms)
 
         links = []
@@ -692,7 +688,6 @@ class Gaussian(Calculator):
         return links
 
     def get_link_cons(self, atoms, layers, links):
-        from ASE_utils import to_molmod
         mm_atoms = to_molmod(atoms)
         neighbours = lambda a:mm_atoms.graph.neighbors[a]
 
@@ -1050,7 +1045,6 @@ class Gaussian(Calculator):
         return self._fchk_data
 
     def set_fchk_data(self):
-        from fchk_utils import FCHK
         try:
             self._fchk_data = FCHK(self.fchk)
         except IOError:
@@ -1163,8 +1157,6 @@ class Gaussian(Calculator):
         self._calc_complete = None
 
     def read_multi_output(self, filename, quantities):
-        import numpy as np
-        from ase.io.gaussian import read_gaussian_out
         """reads multiple quantities from the output (avoids repeatedly reading through the same possibly large log file"""
 
         #if log file not present we always return nan or in the case of atoms the original unmodified atoms
@@ -1184,8 +1176,6 @@ class Gaussian(Calculator):
         return quant
 
     def read_output(self, filename, quantity):
-        import numpy as np
-        from ase.io.gaussian import read_gaussian_out
         """Reads the output file using GaussianReader"""
 
         #if log file not present we always return nan
@@ -1393,7 +1383,6 @@ class Gaussian(Calculator):
         return len(self.max_data['scfenergies'])
 
     def get_oniom_components(self, **kwargs):
-        import oniom_utils
         return oniom_utils.oniom_comp_calcs(self.atoms, **kwargs)
 
     #remember that calling this changes the label - even if you don't run the calculation you can't call this multiple times with no consequence
@@ -1520,7 +1509,6 @@ class Gaussian(Calculator):
         self.calculate(self.atoms, force=frc)
 
     def oniom_stable_start(self, log=0,frc=False):
-        import oniom_utils
         temp_mol_obj = self.atoms
         temp_mol_obj.calc = self
         oniom_utils.oniom_stable(temp_mol_obj, log=log, frc=frc, proc=self.job_params['nodes'], mem=self.job_params['memory'])
@@ -1558,25 +1546,24 @@ class Gaussian(Calculator):
     #todo
     def read_convergence(self):
         """Determines if calculations converged"""
-        return False
         converged = False
 
-        gauss_dir = os.environ['GAUSS_EXEDIR']
-        test = '(Enter ' + gauss_dir + '/l9999.exe)'
-
-        #if calc not complete return false
-        if not self.calc_complete:
-            return False
-
-        f = open(self.log, 'r')
-        lines = f.readlines()
-        f.close()
-
-        for line in lines:
-            if (line.rfind(test) > -1):
-                converged = True
-            else:
-                converged = False
+        # gauss_dir = os.environ['GAUSS_EXEDIR']
+        # test = '(Enter ' + gauss_dir + '/l9999.exe)'
+        #
+        # #if calc not complete return false
+        # if not self.calc_complete:
+        #     return False
+        #
+        # f = open(self.log, 'r')
+        # lines = f.readlines()
+        # f.close()
+        #
+        # for line in lines:
+        #     if (line.rfind(test) > -1):
+        #         converged = True
+        #     else:
+        #         converged = False
 
         return converged
 
