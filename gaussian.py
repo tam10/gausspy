@@ -20,18 +20,21 @@ See accompanying license files for details.
 
 import os
 import warnings
-from pbs_util import pbs
-import gaussian_hacks
-import numpy as np
-import oniom_utils
 from subprocess import Popen, PIPE
+
+from pbs_util import pbs
+import numpy as np
 from ase.io import read as ase_read
 from ase.io.gaussian_reader import GaussianReader as GR
 from ase.io.gaussian import read_gaussian_out
 from ase import Atoms
 from ase.calculators.general import Calculator
 from ASE_utils import to_molmod
+
+import gaussian_hacks
 from fchk_utils import FCHK
+import oniom_utils
+
 
 """
 Gaussian has two generic classes of keywords:  link0 and route.
@@ -248,6 +251,7 @@ class Gaussian(Calculator):
         self._status = None
         self._notes = None
         self._calc_complete = None
+        self._time = None
 
         #holds runtime info
         self.work_folder = ""
@@ -915,7 +919,7 @@ class Gaussian(Calculator):
         #from gaussian_job_manager import server_files_equal
 
         if not filename:
-            filename= self.log
+            filename = self.log
 
         if not frc and self.calc_complete:
             return
@@ -930,12 +934,13 @@ class Gaussian(Calculator):
         if log and exitcode != 0:
             raise RuntimeError('Unable to get file {f} from server, scp exited with {s}'.format(f=filename, s=exitcode))
 
-    #todo
+    #todo test this! After extract formchk command to an ini file
     def gen_fchk(self, frc=False):
         """generates fchk file from chk point file for the molecule specified assumes chk point file exists in the scratch directory"""
 
         ssh, sftp = pbs.connect_server(ssh=True, sftp=True)
-        serv_file = ''
+        serv_file = self._get_scratch_dir() + '/' + self.label + '.fchk'
+
         try:
             sftp.stat(serv_file)
             fchk_exists = True
@@ -955,6 +960,51 @@ class Gaussian(Calculator):
             ssh.close()
             return not bool(formchk_error)
 
+    #Todo
+    #cubegen memory kind fchkfile cubefile npts format
+    def gen_cube(self, kind='density', type='scf', npts=0, format='h', template_cube='', frc=False):
+        """generates cube file from the fchk point file for the molecule specified assumes fchk point file exists in the scratch directory
+        Wraps Gaussian's cubegen utility, see http://www.gaussian.com/g_tech/g_ur/u_cubegen.htm"""
+
+        cubegen_loc = '/home/gaussian-devel/gaussiandvh13_pgi_118/gdv/cubegen'
+
+        fchk_fn = self._get_scratch_dir() + '/' + self.label + '.fchk'
+        cube_fn = self._get_scratch_dir() + '/' + self.label + '_' + type + '.cube'
+
+        ssh, sftp = pbs.connect_server(ssh=True, sftp=True)
+
+        try:
+            sftp.stat(fchk_fn)
+            fchk_exists = True
+        except IOError:
+            fchk_exists = False
+
+        try:
+            sftp.stat(cube_fn)
+            cube_exists = True
+        except IOError:
+            cube_exists = False
+        finally:
+            sftp.close()
+
+        if not fchk_exists:
+            warnings.warn('.fchk file required, aborting')
+
+        if cube_exists and not frc:
+            warnings.warn('.cube file already generated, aborting')
+        elif cube_exists and frc:
+            warnings.warn('.cube file already generated, overwriting')
+
+        if fchk_exists and (not cube_exists or frc):
+            kind_type = kind + '=' + type if type else kind
+            cubegen_command = cubegen_loc + ' 0 {kt} {ff} {cf} {n} {fmt} {cf2}'.format(kt=kind_type, ff=fchk_fn,
+                                                                                       cf=cube_fn, n=npts, fmt=format,
+                                                                                       cf2=template_cube)
+
+            i, o, e = ssh.exec_command(cubegen_command)
+            cubegen_error = e.readlines()
+            ssh.close()
+            return not bool(cubegen_error)
 
         #this currently reads through the file 24 (3 per call to .read_output()) - which is why it's slow!
 #    def read(self, atoms):
@@ -978,7 +1028,7 @@ class Gaussian(Calculator):
 
     #reduced to reading through the file 3 times
     def read(self, atoms=None):
-        quantities = self.read_multi_output(self.log, quantities=['atoms','energy', 'forces', 'dipole'])
+        quantities = self.read_multi_output(self.log, quantities=['atoms', 'energy', 'forces', 'dipole'])
 
         self.positions = quantities[0].get_positions()
         self.energy_free, self.energy_zero = quantities[1], quantities[1]
@@ -1009,6 +1059,7 @@ class Gaussian(Calculator):
     def set_data(self):
         try:
             self._data = GR(self.log)[0]
+            self.set_calc_complete()
         except IndexError:
             pass
 
@@ -1116,7 +1167,7 @@ class Gaussian(Calculator):
             self.set_time()
         return self._time
 
-    #todo
+    #todo test
     def set_time(self):
         command = "tail -n4 '{fl}'".format(fl=self.log)
         p = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
@@ -1133,7 +1184,7 @@ class Gaussian(Calculator):
 
             self._time =  days*24 + hours + minutes/60 + seconds/3600
         except StopIteration:
-            self._time = 0
+            self._time = float('NaN')
 
     @property
     def stable(self):

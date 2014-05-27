@@ -1,12 +1,12 @@
 __author__ = 'clyde'
 
-import pbs
 import copy
 import gzip
-import pickle
 import os
 import warnings
 import re
+import pbs
+
 
 def get_active_dirs():
     scratch, home, local_home = os.environ['GAUSS_SCRATCH'], os.environ['GAUSS_HOME'], os.environ['ASE_HOME']
@@ -130,17 +130,17 @@ def load_from_server(mol, depth='medium'):
     return mol
 
 #todo
-def load_mult_from_server(list_mols):
+#def load_mult_from_server(list_mols):
     serv = os.environ['GAUSS_HOST']
     files_names = [mol.calc._get_scratch_dir() + '/' + mol.calc.log for mol in list_mols]
 
-    #exitcode=0
+    exitcode=0
     #if frc or not server_files_equal(scratch_dir + '/' + filename, filename):
-    exitcode = os.system('scp "%s:%s/%s" "."' % (serv,scratch_dir,filename) )
+    #exitcode = os.system('scp "%s:%s/%s" "."' % (serv, scratch_dir, filename) )
 
-    if exitcode != 0:
-        raise RuntimeError('Unable to get file {f} from server, scp exited with {s}'.format(f=filename, s=exitcode))
-    return
+#    if exitcode != 0:
+#        raise RuntimeError('Unable to get file {f} from server, scp exited with {s}'.format(f=filename, s=exitcode))
+#    return
 
 def oniom_components_on_server(mol):
     from gaussian_job_manager import server_file_exists

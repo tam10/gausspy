@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 __author__ = 'clyde'
-import os, subprocess, sys
+import os
+import sys
 #from cclib.parser import ccopen
 
 def submit_job(fold, inp_fn, procs, memory, time):

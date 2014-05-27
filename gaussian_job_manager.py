@@ -14,9 +14,13 @@ If we are optimizing the geometry, we fail to converge but the calculation looks
 If we have reached a final geometry following a geometry optimization and the wavefunction is stable we run a frequency calculation.
 """
 
+import os
+import time
+import copy
 
-import os, general_utils, time, copy
+import general_utils
 from pbs_util import pbs
+
 
 server = 'login.cx1.hpc.ic.ac.uk'
 username = 'cjf05'
@@ -158,7 +162,7 @@ def server_files_equal(serv_file, local_file):
     else:
         return False
 
-from subprocess import Popen, PIPE
+
 def server_files_equal_v2(serv_files, local_files):
     """checks whether a list of files on the server are the same as a list of local by comparing line 133 and the last 10 lines of the files, returns a list of booleans indicating whether each file is equivalent"""
 

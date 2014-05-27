@@ -1,8 +1,10 @@
 __author__ = 'clyde'
 
+import re
+
 from ase import Atoms, Atom
 from ase.calculators.gaussian import Gaussian
-import re
+
 
 ##inactive
 

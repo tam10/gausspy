@@ -1,8 +1,11 @@
 __author__ = 'clyde'
 
-import numpy as np
 import warnings
+
+import numpy as np
+
 from my_cc_utils.data_utils import unwind
+
 
 #utilities
 normalize = lambda e: e/np.linalg.norm(e)

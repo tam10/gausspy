@@ -1,9 +1,5 @@
 __author__ = 'clyde'
 
-try:
-    from gaussian import Gaussian
-except ImportError:
-    pass
 from warnings import warn
 import itertools
 import copy
@@ -38,6 +34,7 @@ def get_route(inp_str):
 
 
 def add_to_input(inp_str, **kwargs):
+    from gaussian import Gaussian
     route = get_route(inp_str)
     command = Gaussian(**kwargs)._get_route().replace('#p', '').replace('#P', '')
     n_route = route + command
@@ -71,7 +68,7 @@ def switch_input(inp_str, method_lst=None, basis_lst=None):
 
 def oniom_comp_calcs(atoms_oniom, **kwargs):
     """extracts component calculations from an atoms_oniom object that has run an =OnlyInputFiles oniom calculation"""
-
+    from gaussian import Gaussian
     # recursion means if we pass in [atoms1s, atoms2, atoms3...] we return [low_reals, high_models, low_models]
     # where low_reals = [low_real1, low_real2, low_real3...] etc.
     if isinstance(atoms_oniom, list):

@@ -1,8 +1,10 @@
 __author__ = 'clyde'
 
+import os
+
 import pybel
 import ase
-import os
+
 
 #When running a qst3/qst2 calculation we need to match the atoms in the product/reactants/transition state,
 #normally this is done through gaussview/connection but here we use babel to do the same thing algorithmically
