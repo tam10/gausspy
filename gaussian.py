@@ -255,6 +255,8 @@ class Gaussian(Calculator):
 
         #holds runtime info
         self.work_folder = ""
+        self.base_folder = os.realpath(os.environ['ASE_HOME'])
+
 
         self.check()
 
@@ -391,9 +393,8 @@ class Gaussian(Calculator):
             self.set_job()
 
         #set run time options
-        current_fold = os.getcwd()
         try:
-            local_fold = os.getcwd().split(os.environ['ASE_HOME'])[1]
+            local_fold = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
         self.work_fold = os.environ['GAUSS_SCRATCH'] + local_fold + '/'
@@ -515,11 +516,10 @@ class Gaussian(Calculator):
     @property
     def log(self):
         current_dir = os.getcwd()
-        home_dir = os.environ['ASE_HOME']
         work_dir = os.environ['ASE_SCRATCH']
 
         try:
-            log = work_dir + current_dir.split(home_dir)[1] + '/' + self.label + '.log'
+            log = work_dir + current_dir.split(self.base_folder)[1] + '/' + self.label + '.log'
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
@@ -528,11 +528,10 @@ class Gaussian(Calculator):
     @property
     def fchk(self):
         current_dir = os.getcwd()
-        home_dir = os.environ['ASE_HOME']
         work_dir = os.environ['ASE_SCRATCH']
 
         try:
-            fchk = work_dir + current_dir.split(home_dir)[1] + '/' + self.label + '.fchk'
+            fchk = work_dir + current_dir.split(self.base_folder)[1] + '/' + self.label + '.fchk'
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
@@ -881,10 +880,9 @@ class Gaussian(Calculator):
 
     def _get_scratch_dir(self):
         scratch = os.environ['GAUSS_SCRATCH']
-        local_home = os.environ['ASE_HOME']
 
         try:
-            active_dir = os.getcwd().split(local_home)[1]
+            active_dir = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
@@ -893,10 +891,9 @@ class Gaussian(Calculator):
 
     def _get_home_dir(self):
         home = os.environ['GAUSS_HOME']
-        local_home = os.environ['ASE_HOME']
 
         try:
-            active_dir = os.getcwd().split(local_home)[1]
+            active_dir = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
@@ -1345,10 +1342,8 @@ class Gaussian(Calculator):
     def run(self, test=False):
         """Runs Gaussian"""
 
-        local_home = os.environ['ASE_HOME']
-
         try:
-            active_dir = os.getcwd().split(local_home)[1]
+            active_dir = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
@@ -1465,9 +1460,8 @@ class Gaussian(Calculator):
         else:
             restart_chk = self.label + '.chk'
 
-        local_home = os.environ['ASE_HOME']
         try:
-            active_dir = os.getcwd().split(local_home)[1]
+            active_dir = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
         host_dir = os.environ['GAUSS_SCRATCH'] + active_dir + '/'
@@ -1571,32 +1565,34 @@ class Gaussian(Calculator):
         return self._calc_complete
 
     def set_calc_complete(self):
-        if not os.path.isfile(self.log):
-            self._calc_complete = False
-            return
-
         test = 'termination of Gaussian'
 
-        f = open(self.log, 'r')
-        lines = f.readlines()
-        f.close()
+        lines = []
+        try:
+            with open(self.log, 'r') as f:
+                lines += f.readlines()
+        except IOError:
+            #no log file
+            self._calc_complete = False
 
-        if not lines:
-            self._calc_complete =  False
-            return
+        if lines and lines[-1].rfind(test) > -1:
+            self._complete = True
+        else:
+            self._complete = False
 
-        for line in lines:
-            if (line.rfind(test) > -1):
-                complete = True
-            else:
-                complete = False
+        #for line in lines:
+        #    if (line.rfind(test) > -1):
+        #        complete = True
+        #    else:
+        #        complete = False
 
-        self._calc_complete = complete
+
+#        self._calc_complete = complete
 
     #todo
-    def read_convergence(self):
+    #def read_convergence(self):
         """Determines if calculations converged"""
-        converged = False
+        #converged = False
 
         # gauss_dir = os.environ['GAUSS_EXEDIR']
         # test = '(Enter ' + gauss_dir + '/l9999.exe)'
@@ -1614,8 +1610,7 @@ class Gaussian(Calculator):
         #         converged = True
         #     else:
         #         converged = False
-
-        return converged
+        #return converged
 
     def set_results(self, atoms):
         """Sets results"""
