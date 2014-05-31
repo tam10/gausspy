@@ -255,7 +255,7 @@ class Gaussian(Calculator):
 
         #holds runtime info
         self.work_folder = ""
-        self.base_folder = os.realpath(os.environ['ASE_HOME'])
+        self.base_folder = os.path.realpath(os.environ['ASE_HOME'])
 
 
         self.check()
@@ -1413,7 +1413,7 @@ class Gaussian(Calculator):
             self.write_input(self.label + '.com', atoms)
             self.run()
 
-        self.converged = self.read_convergence()
+        #self.converged = self.read_convergence()
         self.set_results(atoms)
 
     def get_best_step(self):
@@ -1555,7 +1555,7 @@ class Gaussian(Calculator):
     def oniom_stable_start(self, log=0,frc=False):
         temp_mol_obj = self.atoms
         temp_mol_obj.calc = self
-        oniom_utils.oniom_stable(temp_mol_obj, log=log, frc=frc, proc=self.job_params['nodes'], mem=self.job_params['memory'])
+        oniom_utils.oniom_stable(temp_mol_obj, log=log, frc=frc)# proc=self.job_params['nodes'], mem=self.job_params['memory'])
 
     @property
     def calc_complete(self):
