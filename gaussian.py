@@ -1576,18 +1576,9 @@ class Gaussian(Calculator):
             self._calc_complete = False
 
         if lines and lines[-1].rfind(test) > -1:
-            self._complete = True
+            self._calc_complete = True
         else:
-            self._complete = False
-
-        #for line in lines:
-        #    if (line.rfind(test) > -1):
-        #        complete = True
-        #    else:
-        #        complete = False
-
-
-#        self._calc_complete = complete
+            self._calc_complete = False
 
     #todo
     #def read_convergence(self):
