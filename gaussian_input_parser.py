@@ -6,7 +6,7 @@ from ase import Atoms, Atom
 from ase.calculators.gaussian import Gaussian
 
 
-##inactive
+## currently inactive would be nice to be able to read input (e.g. when we need to use =input only)
 
 list_gaussian_methods = ['B3LYP', 'PM3', 'PM6', 'ONIOM(', 'HF', 'AM1']
 

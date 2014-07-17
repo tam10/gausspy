@@ -164,7 +164,8 @@ def server_files_equal(serv_file, local_file):
 
 
 def server_files_equal_v2(serv_files, local_files):
-    """checks whether a list of files on the server are the same as a list of local by comparing line 133 and the last 10 lines of the files, returns a list of booleans indicating whether each file is equivalent"""
+    """checks whether a list of files on the server are the same as a list of local by comparing line 133 and the last 10 lines of the files,
+    returns a list of booleans indicating whether each file is equivalent"""
 
     if len(serv_files) != len(local_files):
         raise AttributeError('Cannot compare an unequal list of files')

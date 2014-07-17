@@ -1,6 +1,7 @@
 __author__ = 'clyde'
 
 from warnings import warn
+from gaussian_hacks import get_methods_wo_stability_opt
 import itertools
 import copy
 
@@ -193,9 +194,13 @@ def oniom_stable(oniom_obj, component_objs=None, log=2, frc=False):
     if len(component_methods) != len(components):
         raise RuntimeError('Discrepancy in number of Oniom layers')
 
-    #boolean mask to ignore forcefield methods
-    force_fields = ['UFF', 'DREIDING', 'AMBER', 'uff', 'dreiding', 'amber']
+    #boolean mask to ignore methods with no stability optimisation implemented in Gaussian
+    #force_fields = ['UFF', 'DREIDING', 'AMBER', 'uff', 'dreiding', 'amber']
+
+    force_fields = get_methods_wo_stability_opt()
+    force_fields += [f.upper() for f in force_fields]
     mask = []
+
     for i in range(len(components)):
         if not any(force_field in component_methods[i] for force_field in force_fields):
             mask.append(True)
@@ -250,3 +255,6 @@ def oniom_stable(oniom_obj, component_objs=None, log=2, frc=False):
     calc.start(frc)
 
     return oniom_obj
+
+def oniom_parser():
+    return

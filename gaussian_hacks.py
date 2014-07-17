@@ -14,6 +14,6 @@ def get_cis_energy(filename):
 
 def get_methods_wo_stability_opt():
     """Returns a list of methods that will throw an error if stable=opt is attempted"""
-    a_stable = ['uff', 'huckel', 'mindo3']
+    a_stable = ['uff', 'dreiding', 'amber', 'huckel', 'mindo3']
 
     return a_stable
