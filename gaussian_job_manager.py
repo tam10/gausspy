@@ -22,8 +22,7 @@ import general_utils
 from pbs_util import pbs
 
 
-server = 'login.cx1.hpc.ic.ac.uk'
-username = 'cjf05'
+server, username = os.environ['GAUS_HOST'].split('@')
 
 
 class Job(object):
