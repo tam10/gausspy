@@ -22,7 +22,7 @@ import general_utils
 from pbs_util import pbs
 
 
-server, username = os.environ['GAUS_HOST'].split('@')
+server, username = os.environ['GAUSS_HOST'].split('@')
 
 
 class Job(object):
@@ -122,9 +122,11 @@ def get_from_cx1_scratch(filename):
 
 def server_file_exists(serv_file, sftp=None):
     """checks a given file exists on the server, if an sftp connection is provided that is used (and subsequently left open)"""
+    sftp_gen = False
+
     if not sftp:
-        sftp_gen=True
-        ssh, sftp = pbs.connect_server(ssh=True,sftp=True)
+        sftp_gen = True
+        ssh, sftp = pbs.connect_server(ssh=True, sftp=True)
     try:
         sftp.stat(serv_file)
         return True
