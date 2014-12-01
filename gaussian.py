@@ -254,7 +254,7 @@ class Gaussian(Calculator):
         self._time = None
 
         #holds runtime info
-        self.work_folder = ""
+        self.scratch_folder = os.environ['GAUSS_SCRATCH']
         self.base_folder = os.path.realpath(os.environ['ASE_HOME'])
 
 
@@ -397,12 +397,12 @@ class Gaussian(Calculator):
             local_fold = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
-        self.work_fold = os.environ['GAUSS_SCRATCH'] + local_fold + '/'
+        work_fold = self.scratch_folder + local_fold + '/'
 
-        self.link0_str_params['chk'] = self.work_fold + self.label + '.chk'
+        self.link0_str_params['chk'] = work_fold + self.label + '.chk'
 
         if self.link0_str_params['oldchk'] and not os.path.isabs(self.link0_str_params['oldchk']):
-            self.link0_str_params['oldchk'] = self.work_fold + self.link0_str_params['oldchk']
+            self.link0_str_params['oldchk'] = work_fold + self.link0_str_params['oldchk']
 
         #handle redundant input e.g. if we are specifying component calculations to load in we must also be reading the guess from them
         if self.extra_list_params['component_calcs'] and not self.route_str_params['guess']:
@@ -1348,7 +1348,7 @@ class Gaussian(Calculator):
             raise RuntimeError('Not running from within ASE_HOME')
 
         host_dir = os.environ['GAUSS_HOME'] + active_dir + '/'
-        scratch_dir = os.environ['GAUSS_SCRATCH'] + active_dir + '/'
+        scratch_dir = self.scratch_folder + active_dir + '/'
 
         if not self.job_params['version']:
             self.job_params['version'] = 'direct_g09'
@@ -1363,6 +1363,9 @@ class Gaussian(Calculator):
 
         elif self.job_params['version'] == 'local_g09':
             command = 'qsub -l ncpus={n},memory={m}mb,time={t}:00:00 -v inp_f={inp},host_d={fld} -q {q} ~/bin/ase_calcs.py '.format(fld=host_dir, inp=self.label + '.com', q=queue, n=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
+
+        elif self.job_params['version'] == 'user_g09':
+            command = 'g09 <{inp}> {out}'.format(inp=os.getcwd() + self.label +'.com', out=os.getcwd() + self.label +'.log')
 
         elif self.job_params['version'] =='g09':
             command = '~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
@@ -1464,7 +1467,7 @@ class Gaussian(Calculator):
             active_dir = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
-        host_dir = os.environ['GAUSS_SCRATCH'] + active_dir + '/'
+        host_dir = self.scratch_folder + active_dir + '/'
 
         restart_chk = host_dir + restart_chk
 
