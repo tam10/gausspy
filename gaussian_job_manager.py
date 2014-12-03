@@ -20,9 +20,13 @@ import copy
 
 import general_utils
 from pbs_util import pbs
+import ConfigParser
 
 
-server, username = os.environ['GAUSS_HOST'].split('@')
+config = ConfigParser.RawConfigParser()
+config.read(os.path.expanduser('~/.cc_notebook.ini'))
+
+server, username = config.get('gaussian', 'gauss_host').split('@')
 
 
 class Job(object):
@@ -83,9 +87,11 @@ def on_server(fn):
 
 def send_to_cx1_home(filename):
     """sends the input file in the working dir to the server's home directory"""
-    serv = os.environ['GAUSS_HOST']
-    home = os.environ['GAUSS_HOME']
-    local_home = os.environ['ASE_HOME']
+
+
+    serv = config.get('gaussian', 'gauss_host')
+    home = config.get('gaussian', 'gauss_home')
+    local_home = config.get('ase', 'ase_home')
 
     try:
         active_dir = os.getcwd().split(local_home)[1]
@@ -102,9 +108,14 @@ def send_to_cx1_home(filename):
 
 def get_from_cx1_scratch(filename):
     """copies output from the server's scratch dir to the working dir"""
-    serv = os.environ['GAUSS_HOST']
-    scratch = os.environ['GAUSS_SCRATCH']
-    local_home = os.environ['ASE_HOME']
+    #serv = os.environ['GAUSS_HOST']
+    #scratch = os.environ['GAUSS_SCRATCH']
+    #local_home = os.environ['ASE_HOME']
+
+    serv = config.get('gaussian', 'gauss_host')
+    scratch = config.get('gaussian', 'gauss_scratch')
+    local_home = config.get('ase', 'ase_home')
+
 
     try:
         active_dir = os.getcwd().split(local_home)[1]
@@ -268,13 +279,15 @@ class Job_Manager(object):
 
     def set_directories(self):
         """gets directory on server"""
-        local_home = os.environ['ASE_HOME']
+        #local_home = os.environ['ASE_HOME']
+        local_home = config.get('ase', 'ase_home')
+
         try:
             active_dir = os.getcwd().split(local_home)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
-        self.host_dir = os.environ['GAUSS_HOME'] + active_dir + '/'
-        #self.scratch_dir = os.environment['GAUSS_SCRATCH'] + active_dir + '/'
+        #self.host_dir = os.environ['GAUSS_HOME'] + active_dir + '/'
+        self.host_dir = config.get('gaussian', 'gauss_home') + active_dir + '/'
 
     def submit_job(self,verbose=False):
         #store copy of calculation
@@ -284,7 +297,7 @@ class Job_Manager(object):
 
         #run submission script and collect job info
         ssh = pbs.connect_server(ssh=True)
-        i,o,e = ssh.exec_command('~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= os.environ['GAUSS_HOST'], fld=self.host_dir, inp=self.calc.label + '.com', p=self.calc.job_params['nodes'], m=self.calc.job_params['memory'], t=int(self.calc.job_params['time']), q=self.calc.job_params['queue']))
+        i,o,e = ssh.exec_command('~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= config.get('gaussian', 'gauss_host'), fld=self.host_dir, inp=self.calc.label + '.com', p=self.calc.job_params['nodes'], m=self.calc.job_params['memory'], t=int(self.calc.job_params['time']), q=self.calc.job_params['queue']))
         qsub_output = o.readlines() + e.readlines()
         ssh.close()
 

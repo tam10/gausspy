@@ -35,6 +35,8 @@ import gaussian_hacks
 from fchk_utils import FCHK
 import oniom_utils
 
+import ConfigParser
+
 
 """
 Gaussian has two generic classes of keywords:  link0 and route.
@@ -253,9 +255,15 @@ class Gaussian(Calculator):
         self._calc_complete = None
         self._time = None
 
+        #holds config
+
+        self.config = ConfigParser.RawConfigParser()
+        self.config.read(os.path.expanduser('~/.cc_notebook.ini'))
         #holds runtime info
-        self.scratch_folder = os.environ['GAUSS_SCRATCH']
-        self.base_folder = os.path.realpath(os.environ['ASE_HOME'])
+        #self.scratch_folder = os.environ['GAUSS_SCRATCH']
+        self.scratch_folder = self.config.get('gaussian', 'gauss_scratch')
+        #self.base_folder = os.path.realpath(os.environ['ASE_HOME'])
+        self.base_folder = os.path.realpath(self.config.get('ase', 'ase_home'))
 
 
         self.check()
@@ -516,7 +524,8 @@ class Gaussian(Calculator):
     @property
     def log(self):
         current_dir = os.getcwd()
-        work_dir = os.environ['ASE_SCRATCH']
+        #work_dir = os.environ['ASE_SCRATCH']
+        work_dir = self.config.get('ase', 'ase_scratch')
 
         try:
             log = work_dir + current_dir.split(self.base_folder)[1] + '/' + self.label + '.log'
@@ -528,7 +537,8 @@ class Gaussian(Calculator):
     @property
     def fchk(self):
         current_dir = os.getcwd()
-        work_dir = os.environ['ASE_SCRATCH']
+        #work_dir = os.environ['ASE_SCRATCH']
+        work_dir = self.config.get('ase', 'ase_scratch')
 
         try:
             fchk = work_dir + current_dir.split(self.base_folder)[1] + '/' + self.label + '.fchk'
@@ -629,7 +639,7 @@ class Gaussian(Calculator):
                 atom_indexes =[ind for ind in range(len(atoms)) if ind not in [e for l in layers for e in l]]
 
             layer_atoms = atoms[atom_indexes]
-            layer_charge = sum(layer_atoms.get_charges())
+            layer_charge = sum(layer_atoms.get_initial_charges())
             layer_multiplicity = self.oniom_coord_params['layer_mults'][i]
             #should check layer_charge is an integer
             layer_charge_strs.append("{c} {m} ".format(c=int(layer_charge), m=layer_multiplicity))
@@ -666,7 +676,7 @@ class Gaussian(Calculator):
 
         layer_coord_strs = "\n".join(atom_coord_strs)
 
-        return " ".join(layer_charge_strs) + "\n" + "".join(layer_coord_strs) + self._get_comp_chks()
+        return " ".join(layer_charge_strs) + "\n" + "".join(layer_coord_strs) + "\n" + self._get_comp_chks()
 
     #as these make use of molmods neighbor function care must be taken when building transition structures
     #i.e. if we make a bond very long molmod won't recognise the two atoms as neighbours - this isn't usually a problem as we don't normally cut between atoms that are involved
@@ -879,7 +889,8 @@ class Gaussian(Calculator):
             self.send_to_home(filename)
 
     def _get_scratch_dir(self):
-        scratch = os.environ['GAUSS_SCRATCH']
+        #scratch = os.environ['GAUSS_SCRATCH']
+        scratch = self.config.get('gaussian', 'gauss_scratch')
 
         try:
             active_dir = os.getcwd().split(self.base_folder)[1]
@@ -890,7 +901,8 @@ class Gaussian(Calculator):
         return scratch_dir
 
     def _get_home_dir(self):
-        home = os.environ['GAUSS_HOME']
+        #home = os.environ['GAUSS_HOME']
+        home = self.config.get('gaussian', 'gauss_home')
 
         try:
             active_dir = os.getcwd().split(self.base_folder)[1]
@@ -903,7 +915,9 @@ class Gaussian(Calculator):
 
     def send_to_home(self, filename):
         """copies the input from the working dir to the server's home directory"""
-        serv = os.environ['GAUSS_HOST']
+        #serv = os.environ['GAUSS_HOST']
+        serv = self.config.get('gaussian', 'gauss_host')
+
         home_dir = self._get_home_dir()
 
         exitcode= os.system('scp "%s" "%s:%s"' % (filename, serv,home_dir) )
@@ -921,7 +935,9 @@ class Gaussian(Calculator):
         if not frc and self.calc_complete:
             return
 
-        serv = os.environ['GAUSS_HOST']
+        #serv = os.environ['GAUSS_HOST']
+        serv = self.config.get('gaussian', 'gauss_host')
+
         scratch_dir = self._get_scratch_dir()
 
         #exitcode=0
@@ -1347,7 +1363,8 @@ class Gaussian(Calculator):
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
-        host_dir = os.environ['GAUSS_HOME'] + active_dir + '/'
+        #host_dir = os.environ['GAUSS_HOME'] + active_dir + '/'
+        host_dir = self.config.get('gaussian', 'gauss_home') + active_dir + '/'
         scratch_dir = self.scratch_folder + active_dir + '/'
 
         if not self.job_params['version']:
@@ -1368,8 +1385,9 @@ class Gaussian(Calculator):
             command = 'g09 <{inp}> {out}'.format(inp=os.getcwd() + self.label +'.com', out=os.getcwd() + self.label +'.log')
 
         elif self.job_params['version'] =='g09':
-            command = '~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
+            #command = '~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
             #os.system("ssh {host} '~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'".format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time'])))
+            command = '~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= self.config.get('gaussian', 'gauss_host'), fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
 
         elif self.job_params['version'] == 'gdv_latest':
             #os.system("ssh {host} '~/bin/gdv_latest_calcs.py {fld} {inp} {p} {m} {t} {q}'".format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time'])))

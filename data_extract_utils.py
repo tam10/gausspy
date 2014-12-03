@@ -6,10 +6,17 @@ import os
 import warnings
 import re
 from pbs_util import pbs
+import ConfigParser
 
 
 def get_active_dirs():
-    scratch, home, local_home = os.environ['GAUSS_SCRATCH'], os.environ['GAUSS_HOME'], os.environ['ASE_HOME']
+    config = ConfigParser.RawConfigParser()
+    config.read(os.path.expanduser('~/.cc_notebook.ini'))
+    scratch = config.get('gaussian', 'gauss_scratch')
+    home = config.get('gaussian', 'gauss_home')
+    local_home = config.get('ase', 'ase_home')
+
+    #scratch, home, local_home = os.environ['GAUSS_SCRATCH'], os.environ['GAUSS_HOME'], os.environ['ASE_HOME']
 
     try:
         active_dir = os.getcwd().split(local_home)[1]
