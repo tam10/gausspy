@@ -18,7 +18,7 @@ import os
 import time
 import copy
 
-import general_utils
+from cc_utils import general_utils
 from pbs_util import pbs
 import ConfigParser
 

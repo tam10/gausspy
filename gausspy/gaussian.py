@@ -29,7 +29,7 @@ from ase.io.gaussian_reader import GaussianReader as GR
 from ase.io.gaussian import read_gaussian_out
 from ase import Atoms
 from ase.calculators.general import Calculator
-from ASE_utils import to_molmod
+from ASE_extensions.ASE_utils import to_molmod
 
 import gaussian_hacks
 from fchk_utils import FCHK
