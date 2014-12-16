@@ -20,22 +20,31 @@ See accompanying license files for details.
 
 import os
 import warnings
+import copy
 from subprocess import Popen, PIPE
+from StringIO import StringIO
 
-from pbs_util import pbs
 import numpy as np
 from ase.io import read as ase_read
-from ase.io.gaussian_reader import GaussianReader as GR
-from ase.io.gaussian import read_gaussian_out
 from ase import Atoms
 from ase.calculators.general import Calculator
-from ASE_extensions.ASE_utils import to_molmod
 
+#solving weird gaussian excentricities
 import gaussian_hacks
+
+#configuration and utilities for running gaussian remotely
+import ConfigParser
+from pbs_util import pbs
+
+#classes and functions for extracting information from gaussian log and fchk point files
+from ase.io.gaussian_reader import GaussianReader as GR
+from ase.io.gaussian import read_gaussian_out
 from fchk_utils import FCHK
+
+#molecular utilities for consturcting oniom input files
+from ASE_extensions.ASE_utils import to_molmod
 import oniom_utils
 
-import ConfigParser
 
 
 """
@@ -265,8 +274,32 @@ class Gaussian(Calculator):
         #self.base_folder = os.path.realpath(os.environ['ASE_HOME'])
         self.base_folder = os.path.realpath(self.config.get('ase', 'ase_home'))
 
-
         self.check()
+
+    def copy_config(self):
+        """Creates a copy of the config object"""
+
+        config_string = StringIO()
+        self.config.write(config_string)
+        # We must reset the buffer ready for reading.
+        config_string.seek(0)
+        new_config = ConfigParser.RawConfigParser()
+        new_config.readfp(config_string)
+        config_string.close()
+        return new_config
+
+    # can't use __get_state__/__set_state__ as the general calculator
+    # object all calculators inherit from is an old-style class
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls()
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k != 'config':
+                setattr(result, k, copy.deepcopy(v, memo))
+            else:
+                setattr(result, k, self.copy_config())
+        return result
 
     def check(self):
         """Checks Calculation parameters are valid"""
