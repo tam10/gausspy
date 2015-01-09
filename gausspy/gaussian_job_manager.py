@@ -69,7 +69,7 @@ class Job(object):
 
 def on_server(fn):
     """decorator for functions of ASE_objects"""
-    import ASE_utils
+    from ASE_extensions import ASE_utils
 
     def server_fn(mol=None, serv_opt=None, *args, **kwargs):
         if mol:
