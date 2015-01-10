@@ -1,3 +1,5 @@
+from ASE_extensions.remote import connect_server
+
 __author__ = 'clyde'
 
 #see https://github.com/jsspencer/job_manager for ideas
@@ -19,7 +21,7 @@ import time
 import copy
 
 from cc_utils import general_utils
-from pbs_util import pbs
+from ASE_extensions import remote
 import ConfigParser
 
 
@@ -137,7 +139,7 @@ def server_file_exists(serv_file, sftp=None):
 
     if not sftp:
         sftp_gen = True
-        ssh, sftp = pbs.connect_server(ssh=True, sftp=True)
+        ssh, sftp = connect_server(ssh=True, sftp=True)
     try:
         sftp.stat(serv_file)
         return True
@@ -155,7 +157,7 @@ def server_files_equal(serv_file, local_file):
         #{fl} enclosed in quotes to allow for directories with spaces in them
         serv_command = "head -n100 '{fl}'; tail -n10 '{fl}'".format(fl=serv_file)
         local_command = "head -n100 '{fl}'; tail -n10 '{fl}'".format(fl=os.path.realpath(local_file))
-        ssh = pbs.connect_server(ssh=True)
+        ssh = connect_server(ssh=True)
         stdin, stdout, stderr = ssh.exec_command(serv_command)
         serv_last_lines = stdout.read()
         ssh.close()
@@ -185,7 +187,7 @@ def server_files_equal_v2(serv_files, local_files):
     #{fl} enclosed in quotes to allow for directories with spaces in them
     serv_commands = ["sed -n 133p '{fl}'; tail -n10 '{fl}'; echo server_files_equal_v2_chunk_done;".format(fl=serv_file) for serv_file in serv_files]
     serv_command = "".join(serv_commands)
-    ssh = pbs.connect_server(ssh=True)
+    ssh = connect_server(ssh=True)
     stdin, stdout, stderr = ssh.exec_command(serv_command)
     #last element is empty space because of the way split works
     serv_lines = stdout.read().split('server_files_equal_v2_chunk_done\n')[0:-1]
@@ -201,7 +203,7 @@ def server_files_equal_v2(serv_files, local_files):
 
 
 def server_data_unequal(list_mols):
-    from ASE_utils import get_active_dirs
+    from ASE_extensions.ASE_utils import get_active_dirs
 
     """checks whether calculation data from log files on the server is the same as local calculation data by comparing fingerprints of the files"""
     fingerprints = [mol.calc.fingerprint for mol in list_mols]
@@ -214,7 +216,7 @@ def server_data_unequal(list_mols):
 
     serv_commands = ["sed -n 133p '{fl}'; tail -n10 '{fl}'; echo server_files_equal_v2_chunk_done;".format(fl=serv_file) for serv_file in serv_files]
     serv_command = "".join(serv_commands)
-    ssh = pbs.connect_server(ssh=True)
+    ssh = connect_server(ssh=True)
     stdin, stdout, stderr = ssh.exec_command(serv_command)
     #last element is empty space because of the way split works
     serv_fingerprints = stdout.read().split('server_files_equal_v2_chunk_done\n')[0:-1]
@@ -296,19 +298,19 @@ class Job_Manager(object):
         self.send_to_home(self.calc.label + '.com')
 
         #run submission script and collect job info
-        ssh = pbs.connect_server(ssh=True)
+        ssh = connect_server(ssh=True)
         i,o,e = ssh.exec_command('~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= config.get('gaussian', 'gauss_host'), fld=self.host_dir, inp=self.calc.label + '.com', p=self.calc.job_params['nodes'], m=self.calc.job_params['memory'], t=int(self.calc.job_params['time']), q=self.calc.job_params['queue']))
         qsub_output = o.readlines() + e.readlines()
         ssh.close()
 
         #sanity check
         if len(qsub_output) == 0:
-            raise pbs.PBSUtilQSubError("Failed to launch Gaussian %s, qsub gave no stdoutput" % self.calc.label)
+            raise remote.PBSUtilQSubError("Failed to launch Gaussian %s, qsub gave no stdoutput" % self.calc.label)
         if verbose:
             print '\n%s\n' %  qsub_output
 
         #extract and return job_id
-        pbs_id = pbs.parse_qsub_output(qsub_output[0])[0]
+        pbs_id = remote.parse_qsub_output(qsub_output[0])[0]
         return pbs_id
 
     #monitor process
@@ -378,7 +380,7 @@ class Job_Manager(object):
             return f.readlines()
 
     def is_job_active(self):
-        if self.id in [e.id for e in pbs.qstat_plain()]:
+        if self.id in [e.id for e in remote.qstat_plain()]:
             return True
         else:
             return False

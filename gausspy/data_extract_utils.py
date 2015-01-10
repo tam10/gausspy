@@ -1,3 +1,5 @@
+from ASE_extensions.remote import connect_server
+
 __author__ = 'clyde'
 
 import copy
@@ -34,7 +36,7 @@ def get_latest_restart_name(file_n, ssh=None):
     """get's the file name of the final restarted calculation from the server"""
     ssh_created = False
     if not ssh:
-        ssh = pbs.connect_server(ssh=True)
+        ssh = connect_server(ssh=True)
         ssh_created = True
 
     i,o,e = ssh.exec_command('ls {fn}_restart_{{?,??}}.log'.format(fn=file_n.replace('.log', '')))
@@ -64,7 +66,7 @@ def latest_restarts(list_mols):
     home_files = [mol.calc.label + '.log' for mol in list_mols]
     serv_files = [scratch_dir + '/' + fn for fn in home_files]
 
-    ssh = pbs.connect_server(ssh=True)
+    ssh = connect_server(ssh=True)
     serv_files = [get_latest_restart_name(file_n, ssh) for file_n in serv_files]
     home_files = [sfn.replace(scratch_dir + '/', '') for sfn in serv_files]
     ssh.close()

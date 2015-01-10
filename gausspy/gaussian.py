@@ -30,6 +30,7 @@ from ase import Atoms
 from ase.calculators.general import Calculator
 
 #solving weird gaussian excentricities
+from ASE_extensions.remote import connect_server
 import gaussian_hacks
 
 #configuration and utilities for running gaussian remotely
@@ -984,7 +985,7 @@ class Gaussian(Calculator):
     def gen_fchk(self, frc=False):
         """generates fchk file from chk point file for the molecule specified assumes chk point file exists in the scratch directory"""
 
-        ssh, sftp = pbs.connect_server(ssh=True, sftp=True)
+        ssh, sftp = connect_server(ssh=True, sftp=True)
         serv_file = self._get_scratch_dir() + '/' + self.label + '.fchk'
 
         try:
@@ -1017,7 +1018,7 @@ class Gaussian(Calculator):
         fchk_fn = self._get_scratch_dir() + '/' + self.label + '.fchk'
         cube_fn = self._get_scratch_dir() + '/' + self.label + '_' + type + '.cube'
 
-        ssh, sftp = pbs.connect_server(ssh=True, sftp=True)
+        ssh, sftp = connect_server(ssh=True, sftp=True)
 
         try:
             sftp.stat(fchk_fn)
@@ -1445,7 +1446,7 @@ class Gaussian(Calculator):
         elif 'direct' in self.job_params['version'] or 'local' in self.job_params['version']:
             os.system(command)
         else:
-            ssh = pbs.connect_server(ssh=True)
+            ssh = connect_server(ssh=True)
             stdin, stdout, stderr = ssh.exec_command(command)
             self.job_params['qid'] = stdout.read().split('.')[0]
             ssh.close()
