@@ -567,7 +567,7 @@ class Gaussian(Calculator):
 
         scratch_dir = self._get_scratch_dir()
         chk_commands = [scratch_dir + '/' + c.calc.label+'.chk' if c else 'generate' for c in self.extra_list_params['component_calcs']]
-        return '\n\n'+'\n\n'.join(chk_commands)
+        return '\n'+'\n\n'.join(chk_commands) + '\n'
 
 
     @property
