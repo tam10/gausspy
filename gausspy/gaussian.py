@@ -30,7 +30,7 @@ from ase import Atoms
 from ase.calculators.general import Calculator
 
 #solving weird gaussian excentricities
-from ASE_extensions.remote import connect_server
+from ase_extensions.remote import connect_server
 import gaussian_hacks
 
 #configuration and utilities for running gaussian remotely
@@ -43,7 +43,7 @@ from ase.io.gaussian import read_gaussian_out
 from fchk_utils import FCHK
 
 #molecular utilities for consturcting oniom input files
-from ASE_extensions.ASE_utils import to_molmod
+from ase_extensions.ase_utils import to_molmod
 import oniom_utils
 
 

@@ -1,4 +1,3 @@
-from ASE_extensions.remote import connect_server
 
 __author__ = 'clyde'
 
@@ -21,14 +20,14 @@ import time
 import copy
 
 from cc_utils import general_utils
-from ASE_extensions import remote
+from ase_extensions import remote
 import ConfigParser
 
 
 config = ConfigParser.RawConfigParser()
 config.read(os.path.expanduser('~/.cc_notebook.ini'))
 
-server, username = config.get('gaussian', 'gauss_host').split('@')
+username, server = config.get('gaussian', 'gauss_host').split('@')
 
 
 class Job(object):
@@ -71,7 +70,7 @@ class Job(object):
 
 def on_server(fn):
     """decorator for functions of ASE_objects"""
-    from ASE_extensions import ASE_utils
+    from ase_extensions import ase_utils
 
     def server_fn(mol=None, serv_opt=None, *args, **kwargs):
         if mol:
@@ -79,11 +78,11 @@ def on_server(fn):
             args=[mol] + list(args)
             job = Job(nodes, memory + nodes * 150, time, queue)
             master_fn = (fn,job)
-            return ASE_utils.run_on_server(master_fn, *args, **kwargs)
+            return ase_utils.run_on_server(master_fn, *args, **kwargs)
         elif serv_opt:
-            return ASE_utils.run_on_server((fn,serv_opt), *args, **kwargs)
+            return ase_utils.run_on_server((fn,serv_opt), *args, **kwargs)
         else:
-            return ASE_utils.run_on_server((fn, Job()), *args, **kwargs)
+            return ase_utils.run_on_server((fn, Job()), *args, **kwargs)
 
     return server_fn
 
@@ -139,7 +138,7 @@ def server_file_exists(serv_file, sftp=None):
 
     if not sftp:
         sftp_gen = True
-        ssh, sftp = connect_server(ssh=True, sftp=True)
+        ssh, sftp = remote.connect_server(ssh=True, sftp=True)
     try:
         sftp.stat(serv_file)
         return True
@@ -157,7 +156,7 @@ def server_files_equal(serv_file, local_file):
         #{fl} enclosed in quotes to allow for directories with spaces in them
         serv_command = "head -n100 '{fl}'; tail -n10 '{fl}'".format(fl=serv_file)
         local_command = "head -n100 '{fl}'; tail -n10 '{fl}'".format(fl=os.path.realpath(local_file))
-        ssh = connect_server(ssh=True)
+        ssh = remote.connect_server(ssh=True)
         stdin, stdout, stderr = ssh.exec_command(serv_command)
         serv_last_lines = stdout.read()
         ssh.close()
@@ -187,7 +186,7 @@ def server_files_equal_v2(serv_files, local_files):
     #{fl} enclosed in quotes to allow for directories with spaces in them
     serv_commands = ["sed -n 133p '{fl}'; tail -n10 '{fl}'; echo server_files_equal_v2_chunk_done;".format(fl=serv_file) for serv_file in serv_files]
     serv_command = "".join(serv_commands)
-    ssh = connect_server(ssh=True)
+    ssh = remote.connect_server(ssh=True)
     stdin, stdout, stderr = ssh.exec_command(serv_command)
     #last element is empty space because of the way split works
     serv_lines = stdout.read().split('server_files_equal_v2_chunk_done\n')[0:-1]
@@ -203,7 +202,7 @@ def server_files_equal_v2(serv_files, local_files):
 
 
 def server_data_unequal(list_mols):
-    from ASE_extensions.ASE_utils import get_active_dirs
+    from ase_extensions.ase_utils import get_active_dirs
 
     """checks whether calculation data from log files on the server is the same as local calculation data by comparing fingerprints of the files"""
     fingerprints = [mol.calc.fingerprint for mol in list_mols]
@@ -216,7 +215,7 @@ def server_data_unequal(list_mols):
 
     serv_commands = ["sed -n 133p '{fl}'; tail -n10 '{fl}'; echo server_files_equal_v2_chunk_done;".format(fl=serv_file) for serv_file in serv_files]
     serv_command = "".join(serv_commands)
-    ssh = connect_server(ssh=True)
+    ssh = remote.connect_server(ssh=True)
     stdin, stdout, stderr = ssh.exec_command(serv_command)
     #last element is empty space because of the way split works
     serv_fingerprints = stdout.read().split('server_files_equal_v2_chunk_done\n')[0:-1]
@@ -298,7 +297,7 @@ class Job_Manager(object):
         self.send_to_home(self.calc.label + '.com')
 
         #run submission script and collect job info
-        ssh = connect_server(ssh=True)
+        ssh = remote.connect_server(ssh=True)
         i,o,e = ssh.exec_command('~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= config.get('gaussian', 'gauss_host'), fld=self.host_dir, inp=self.calc.label + '.com', p=self.calc.job_params['nodes'], m=self.calc.job_params['memory'], t=int(self.calc.job_params['time']), q=self.calc.job_params['queue']))
         qsub_output = o.readlines() + e.readlines()
         ssh.close()

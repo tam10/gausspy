@@ -1,4 +1,4 @@
-from ASE_extensions.remote import connect_server
+from ase_extensions.remote import connect_server
 
 __author__ = 'clyde'
 
@@ -7,7 +7,6 @@ import gzip
 import os
 import warnings
 import re
-from pbs_util import pbs
 import ConfigParser
 
 
