@@ -25,7 +25,7 @@ from subprocess import Popen, PIPE
 from StringIO import StringIO
 
 import numpy as np
-from ase.io import read as ase_read
+from io.gaussian import read_gaussian_out as ase_read
 from ase import Atoms
 from ase.calculators.general import Calculator
 
@@ -37,8 +37,8 @@ import gaussian_hacks
 import ConfigParser
 
 #classes and functions for extracting information from gaussian log and fchk point files
-from ase.io.gaussian_reader import GaussianReader as GR
-from ase.io.gaussian import read_gaussian_out
+from io.gaussian_reader import GaussianReader as GR
+from io.gaussian import read_gaussian_out
 from fchk_utils import FCHK
 
 #molecular utilities for consturcting oniom input files
