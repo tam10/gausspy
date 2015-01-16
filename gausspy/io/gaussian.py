@@ -18,7 +18,6 @@ from ase.atoms import Atoms
 from ase.atom import Atom
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io.gaussian_reader import GaussianReader as GR
-from ase.calculators.gaussian import Gaussian
 
 # http://www.gaussian.com/g_tech/g_ur/k_dft.htm
 allowed_dft_functionals = ['lsda',  # = 'svwn'
@@ -126,13 +125,3 @@ def read_gaussian(filename):
                 atoms += Atom(symbol, position=position)
                 i += 1
     return atoms
-
-
-def write_gaussian(filename, atoms):
-    """Writes a basic Gaussian input file"""
-# Since Gaussian prints the geometry directly into the input file, we'll just
-# the write_input method from the Gaussian calculator, and just use the
-# default settings
-    calc = Gaussian()
-    calc.initialize(atoms)
-    calc.write_input(filename, atoms)
