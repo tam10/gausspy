@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import setup
 setup(name='gausspy',
       version='0.1',
-      packages=['gausspy'],
+      packages=['gausspy', 'gausspy.io'],
       )
