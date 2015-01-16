@@ -266,40 +266,58 @@ class Gaussian(Calculator):
 
         #holds config
 
-        self.config = ConfigParser.RawConfigParser()
-        self.config.read(os.path.expanduser('~/.cc_notebook.ini'))
+#        self.config = ConfigParser.RawConfigParser()
+#        self.config.read(os.path.expanduser('~/.cc_notebook.ini'))
         #holds runtime info
         #self.scratch_folder = os.environ['GAUSS_SCRATCH']
-        self.scratch_folder = self.config.get('gaussian', 'gauss_scratch')
+        #self.scratch_folder = self.config.get('gaussian', 'gauss_scratch')
         #self.base_folder = os.path.realpath(os.environ['ASE_HOME'])
-        self.base_folder = os.path.realpath(self.config.get('ase', 'ase_home'))
+        #self.base_folder = os.path.realpath(self.config.get('ase', 'ase_home'))
 
         self.check()
 
-    def copy_config(self):
-        """Creates a copy of the config object"""
+    #these three are properties so that the values are looked up everytime we call them.
+    #we need this because we sometimes pickle these objects and send them to be run on a remote server
+    #when they are on the server they need to pick up directory locations for the server and not use the
+    #directory locations appropriate for the local machine
+    @property
+    def config(self):
+        temp_config = ConfigParser.RawConfigParser()
+        temp_config.read(os.path.expanduser('~/.cc_notebook.ini'))
+        return temp_config
 
-        config_string = StringIO()
-        self.config.write(config_string)
-        # We must reset the buffer ready for reading.
-        config_string.seek(0)
-        new_config = ConfigParser.RawConfigParser()
-        new_config.readfp(config_string)
-        config_string.close()
-        return new_config
+    @property
+    def base_folder(self):
+        return os.path.realpath(self.config.get('ase', 'ase_home'))
 
-    # can't use __get_state__/__set_state__ as the general calculator
-    # object all calculators inherit from is an old-style class
-    def __deepcopy__(self, memo):
-        cls = self.__class__
-        result = cls()
-        memo[id(self)] = result
-        for k, v in self.__dict__.items():
-            if k != 'config':
-                setattr(result, k, copy.deepcopy(v, memo))
-            else:
-                setattr(result, k, self.copy_config())
-        return result
+    @property
+    def scratch_folder(self):
+        return self.config.get('gaussian', 'gauss_scratch')
+
+    # def copy_config(self):
+    #     """Creates a copy of the config object"""
+    #
+    #     config_string = StringIO()
+    #     self.config.write(config_string)
+    #     # We must reset the buffer ready for reading.
+    #     config_string.seek(0)
+    #     new_config = ConfigParser.RawConfigParser()
+    #     new_config.readfp(config_string)
+    #     config_string.close()
+    #     return new_config
+    #
+    # # can't use __get_state__/__set_state__ as the general calculator
+    # # object all calculators inherit from is an old-style class
+    # def __deepcopy__(self, memo):
+    #     cls = self.__class__
+    #     result = cls()
+    #     memo[id(self)] = result
+    #     for k, v in self.__dict__.items():
+    #         if k != 'config':
+    #             setattr(result, k, copy.deepcopy(v, memo))
+    #         else:
+    #             setattr(result, k, self.copy_config())
+    #     return result
 
     def check(self):
         """Checks Calculation parameters are valid"""
