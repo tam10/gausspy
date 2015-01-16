@@ -9,6 +9,18 @@ import warnings
 import re
 import ConfigParser
 
+# Tail - from http://stackoverflow.com/questions/260273/most-efficient-way-to-search-the-last-x-lines-of-a-file-in-python
+# this is a horrible hack because we always only take the last 1024 characters so if we ask for more lines than there is there this will break
+def get_last_lines(fname,n):
+    if n > 10:
+        print('Warning attempting to use this for more than the last 10 lines is not recommended as this function is a hack')
+    with open(fname, "r") as f:
+        f.seek (0, 2)           # Seek @ EOF
+        fsize = f.tell()        # Get Size
+        f.seek (max (fsize-1024, 0), 0) # Set pos @ last 1024 chars <- this is what makes it a hack
+        lines = f.readlines()       # Read to end
+
+    return lines[-n:]    # Get last 10 lines
 
 def get_active_dirs():
     config = ConfigParser.RawConfigParser()

@@ -19,7 +19,7 @@ import os
 import time
 import copy
 
-from cc_utils import general_utils
+from .data_extract_utils import get_last_lines
 from ase_extensions import remote
 import ConfigParser
 
@@ -386,7 +386,7 @@ class Job_Manager(object):
 
     def get_job_status(self):
         if not self.is_job_active():
-            last_outp_lines = "".join(general_utils.get_last_lines(self.calc.label + '.log',5))
+            last_outp_lines = "".join(get_last_lines(self.calc.label + '.log',5))
             if 'Normal termination of Gaussian' in last_outp_lines:
                 self.job_success = True
             elif 'Error' in last_outp_lines:

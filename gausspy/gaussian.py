@@ -35,7 +35,6 @@ import gaussian_hacks
 
 #configuration and utilities for running gaussian remotely
 import ConfigParser
-#from pbs_util import pbs
 
 #classes and functions for extracting information from gaussian log and fchk point files
 from ase.io.gaussian_reader import GaussianReader as GR
