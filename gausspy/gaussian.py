@@ -20,9 +20,7 @@ See accompanying license files for details.
 
 import os
 import warnings
-import copy
 from subprocess import Popen, PIPE
-from StringIO import StringIO
 
 import numpy as np
 from io.gaussian import read_gaussian_out as ase_read

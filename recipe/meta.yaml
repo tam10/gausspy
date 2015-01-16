@@ -1,0 +1,19 @@
+package:
+  name: gausspy
+  version: 0.1
+
+source:
+  git_url: https://github.com/Clyde-fare/gausspy.git
+
+build:
+  number: 0
+
+requirements:
+  build:
+    - python
+  run:
+    - numpy
+    - ase ==3.8.2.dev
+    - ase-extensions ==0.1
+    - molmod ==1.01
+    - cclib ==1.1.dev
