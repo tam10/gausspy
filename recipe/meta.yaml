@@ -11,9 +11,10 @@ build:
 requirements:
   build:
     - python
+    - setuptools
   run:
     - numpy
     - ase ==3.8.2.dev
     - ase-extensions ==0.1
     - molmod ==1.01
-    - cclib ==1.1.dev
+    - cclib
