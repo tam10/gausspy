@@ -20,7 +20,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io.gaussian_reader import GaussianReader as GR
 
 # http://www.gaussian.com/g_tech/g_ur/k_dft.htm
-allowed_dft_functionals = ['lsda',  # = 'svwn'
+allowed_methods = ['lsda',  # = 'svwn'
                            'svwn',
                            'svwn5',  # != 'svwn'
                            'blyp',
@@ -34,6 +34,8 @@ allowed_dft_functionals = ['lsda',  # = 'svwn'
                            'tpssh',
                            'tpsstpss',
                            'wb97xd',
+                           'uff',
+                           'huckel',
                           ]
 
 
@@ -52,7 +54,7 @@ def read_gaussian_out(filename, index=-1, quantity='atoms', quantities=None):
     method = data['Method']
     version = data['Version']
 
-    if method.lower()[1:] in allowed_dft_functionals:
+    if method.lower()[1:] in allowed_methods:
         method = 'HF'
 
     atoms = Atoms(positions=positions, numbers=numbers)
@@ -74,7 +76,7 @@ def read_gaussian_out(filename, index=-1, quantity='atoms', quantities=None):
         for n, line in enumerate(lines):
             if 'oniom' in method.lower() and 'extrapolated energy' in line:
                 energy = float(line.split()[4])
-            elif 'SCF Done' in line:
+            elif not energy and 'SCF Done' in line:
                 energy = float(line.split()[4])
 
             if ('Forces (Hartrees/Bohr)' in line):
