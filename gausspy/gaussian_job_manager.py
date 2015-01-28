@@ -298,7 +298,9 @@ class Job_Manager(object):
 
         #run submission script and collect job info
         ssh = remote.connect_server(ssh=True)
-        i,o,e = ssh.exec_command('~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= config.get('gaussian', 'gauss_host'), fld=self.host_dir, inp=self.calc.label + '.com', p=self.calc.job_params['nodes'], m=self.calc.job_params['memory'], t=int(self.calc.job_params['time']), q=self.calc.job_params['queue']))
+        i,o,e = ssh.exec_command('submit_calc {fld} {inp} {p} {m} {t} {q} {v}'.format(host= config.get('gaussian', 'gauss_host'), fld=self.host_dir, inp=self.calc.label + '.com',
+                                                                                      p=self.calc.job_params['nodes'], m=self.calc.job_params['memory'], t=int(self.calc.job_params['time']),
+                                                                                      q=self.calc.job_params['queue'], v=self.calc.job_paras['version']))
         qsub_output = o.readlines() + e.readlines()
         ssh.close()
 

@@ -1412,7 +1412,6 @@ class Gaussian(Calculator):
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
-        #host_dir = os.environ['GAUSS_HOME'] + active_dir + '/'
         host_dir = self.config.get('gaussian', 'gauss_home') + active_dir + '/'
         scratch_dir = self.scratch_folder + active_dir + '/'
 
@@ -1424,32 +1423,25 @@ class Gaussian(Calculator):
         else:
             queue = self.job_params['queue']
 
+        #when we are submitting a script containing the calculation object to the cluster
         if self.job_params['version'] == 'direct_g09':
             command = 'module load gaussian; g09 <{inp}> {out}'.format(inp=host_dir + self.label +'.com', out=scratch_dir + self.label +'.log')
 
+        #when the script containing the calculation object is being run from the login node
         elif self.job_params['version'] == 'local_g09':
             command = 'qsub -l ncpus={n},memory={m}mb,time={t}:00:00 -v inp_f={inp},host_d={fld} -q {q} ~/bin/ase_calcs.py '.format(fld=host_dir, inp=self.label + '.com', q=queue, n=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
 
+        #when the script containing the calculation object is being run directly on the machine with gaussian
         elif self.job_params['version'] == 'user_g09':
             command = 'g09 <{inp}> {out}'.format(inp=os.getcwd() + self.label +'.com', out=os.getcwd() + self.label +'.log')
 
-        elif self.job_params['version'] =='g09':
-            #command = '~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
-            #os.system("ssh {host} '~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'".format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time'])))
-            command = '~/bin/g09_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(host= self.config.get('gaussian', 'gauss_host'), fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
 
-        elif self.job_params['version'] == 'gdv_latest':
-            #os.system("ssh {host} '~/bin/gdv_latest_calcs.py {fld} {inp} {p} {m} {t} {q}'".format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time'])))
-            command = '~/bin/gdv_latest_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
-
-        elif self.job_params['version'] == 'gdvh23':
-            #os.system("ssh {host} '~/bin/gdvh23_calcs.py {fld} {inp} {p} {m} {t} {q}'".format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time'])))
-            command = '~/bin/gdvh23_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
-
-        elif self.job_params['version'] == 'gdvh32':
-            #os.system("ssh {host} '~/bin/gdvh23_calcs.py {fld} {inp} {p} {m} {t} {q}'".format(host= os.environ['GAUSS_HOST'], fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time'])))
-            command = '~/bin/gdvh32_calcs.py {fld} {inp} {p} {m} {t} {q}'.format(fld=host_dir, inp=self.label + '.com', q=queue, p=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
-
+        #when the script containing the calculation object is being run remotely and we are going to remote copy across and execute the job
+        elif 'g09' or 'gdv' in self.job_params['version'] and not 'dev' in self.job_params['version']:
+            command = 'submit_calc {fld} {inp} {p} {m} {t} {q} {v}'.format(host= self.config.get('gaussian', 'gauss_host'),
+                                                                           fld=host_dir, inp=self.label + '.com', q=queue,
+                                                                           p=self.job_params['nodes'], m=self.job_params['memory'],
+                                                                           t=int(self.job_params['time']), v=self.job_params['version'])
 
         else:
             raise RuntimeError("Invalid Gaussian version selected")
@@ -1462,6 +1454,7 @@ class Gaussian(Calculator):
             os.system(command)
         else:
             ssh = connect_server(ssh=True)
+            command = 'source /etc/bashrc; source /etc/profile ;' + command
             stdin, stdout, stderr = ssh.exec_command(command)
             self.job_params['qid'] = stdout.read().split('.')[0]
             ssh.close()
@@ -1497,6 +1490,7 @@ class Gaussian(Calculator):
     def get_number_steps(self):
         return len(self.max_data['scfenergies'])
 
+    #unused?
     def get_oniom_components(self, **kwargs):
         return oniom_utils.oniom_comp_calcs(self.atoms, **kwargs)
 

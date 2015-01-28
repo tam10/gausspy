@@ -3,13 +3,14 @@ __author__ = 'clyde'
 import os
 import sys
 import ConfigParser
+from optparse import OptionParser
 
 config = ConfigParser.RawConfigParser()
 config.read(os.path.expanduser('~/.cc_notebook.ini'))
 user = config.get('pbs', 'user')
 
 
-def construct_job_script(procs=None, memory=None, time=None, queue='None'):
+def construct_job_script(procs=None, memory=None, time=None, queue='None', version=''):
     """Construct pbs submission script"""
     if not procs:
         procs = 1
@@ -36,17 +37,26 @@ def construct_job_script(procs=None, memory=None, time=None, queue='None'):
                     '#PBS -q {q}'.format(q=queue)]
         head_str = "\n".join(lhead_str) + '\n'
 
-    ljob_str = ["module load gaussian/g09-d01",
+
+    if 'gdv' not in version:
+         ljob_str = ["module load gaussian/{v}".format(v=version),
                 'date=`date "+%d-%m-%y %r"`',
                 'echo "$value: $HOME/$FLD$FLNM started on $date1" >> /work/{u}/logfile.txt'.format(u=user),
                 'g09 < $HOME/$FLD$FLNM > $WORK/$FLD${FLNM%.*}.log',
                 'date2=`date "+%d-%m-%y %r"`',
                 'echo "$value: $HOME/$FLD$FLNM finished on $date2" >> /work/{u}/logfile.txt'.format(u=user)]
+    else:
+        ljob_str = [ "module use /home/gaussian-devel/moremodules\nmodule load gaussian-{v}".format(v=version.replace('gdv-','')),
+                    'date=`date "+%d-%m-%y %r"`',
+                    'echo "$value: $HOME/$FLD$FLNM started on $date1" >> /work/{u}/logfile.txt'.format(u=user),
+                    'gdv < $HOME/$FLD$FLNM > $WORK/$FLD${FLNM%.*}.log',
+                    'date2=`date "+%d-%m-%y %r"`',
+                    'echo "$value: $HOME/$FLD$FLNM finished on $date2" >> /work/{u}/logfile.txt'.format(u=user)]
 
     return head_str + "\n".join(ljob_str)
 
 
-def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None'):
+def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None', version=''):
     """Submits gaussian job to the pbs queue"""
     if not procs:
         procs = 1
@@ -61,7 +71,7 @@ def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None'):
     work_dir = '/work/' + local_fold
 
     #bash script that we submit to the queue
-    script_str = construct_job_script(procs, memory, time, queue)
+    script_str = construct_job_script(procs, memory, time, queue, version)
 
     name = inp_fn.split('.')[0]
     job_fn = name + '_job.sh'
@@ -85,14 +95,22 @@ def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None'):
             inp_f.writelines(new_contents)
 
     #submission to queue
-    job_id = os.system("cd {f}; /opt/pbs/default/bin/qsub -v FLD={f1},FLNM={n} {j}".format(f=fold, f1 = local_fold, n=inp_fn, j=fold+job_fn))
+    job_id = os.system("cd {f}; qsub -v FLD={f1},FLNM={n} {j}".format(f=fold, f1 = local_fold, n=inp_fn, j=fold+job_fn))
 
     return job_id
 
-if __name__ == '__main__':
-    fold = inp_fn = procs = mem = time = queue = None
+def main_g09_pbs():
+    p = OptionParser(
+        usage="usage: %prog FLD FL [options]",
+        description="Submits calculations to the PBS queue ")
 
-    args = sys.argv[1:]
+    opts, args = p.parse_args()
+
+    if len(args) < 2:
+        p.error('requies at least 2 arguments')
+
+    procs = mem = time = queue = None
+    version = 'g09'
 
     fold = args[0]
     inp_fn = args[1]
@@ -105,5 +123,11 @@ if __name__ == '__main__':
         time = args[4]
     if len(args) > 5:
         queue = args[5]
+    if len(args) > 6:
+        version = args[6]
 
-    submit_job(fold, inp_fn, int(procs), int(mem), int(time), queue)
+    submit_job(fold, inp_fn, int(procs), int(mem), int(time), queue, version)
+
+
+if __name__ == '__main__':
+    main_g09_pbs()
