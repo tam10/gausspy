@@ -1,17 +1,23 @@
 #! /usr/bin/env python
 __author__ = 'clyde'
 import os
-import sys
 import ConfigParser
 from optparse import OptionParser
 
-config = ConfigParser.RawConfigParser()
-config.read(os.path.expanduser('~/.cc_notebook.ini'))
-user = config.get('pbs', 'user')
-
+try:
+    config = ConfigParser.RawConfigParser()
+    config.read(os.path.expanduser('~/.cc_notebook.ini'))
+    user = config.get('pbs', 'user')
+except ConfigParser.NoSectionError:
+    config, user = None, None
 
 def construct_job_script(procs=None, memory=None, time=None, queue='None', version=''):
     """Construct pbs submission script"""
+
+    if not user or not config:
+        print('\nRemote details missing from ~/.cc_notebook.ini\nJob not submitted\n\n')
+        return
+
     if not procs:
         procs = 1
 
@@ -58,6 +64,11 @@ def construct_job_script(procs=None, memory=None, time=None, queue='None', versi
 
 def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None', version=''):
     """Submits gaussian job to the pbs queue"""
+
+    if not user or not config:
+        print('\nRemote details missing from ~/.cc_notebook.ini\nJob not submitted\n\n')
+        return
+
     if not procs:
         procs = 1
 
@@ -99,7 +110,9 @@ def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None', v
 
     return job_id
 
-def main_g09_pbs():
+def submit_pbs_calc():
+    """Exit point allowing submission of jobs to the pbs queue"""
+
     p = OptionParser(
         usage="usage: %prog FLD FL [options]",
         description="Submits calculations to the PBS queue ")
@@ -130,4 +143,4 @@ def main_g09_pbs():
 
 
 if __name__ == '__main__':
-    main_g09_pbs()
+    submit_pbs_calc()
