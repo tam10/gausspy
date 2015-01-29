@@ -4,6 +4,7 @@ package:
 
 source:
   git_url: https://github.com/Clyde-fare/gausspy.git
+  git_tag: dev
 #   path: ../
 
 build:
