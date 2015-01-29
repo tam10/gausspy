@@ -4,9 +4,13 @@ package:
 
 source:
   git_url: https://github.com/Clyde-fare/gausspy.git
+#   path: ../
 
 build:
   number: 0
+  
+  entry_points:
+    - submit_calc = gausspy.g09_pbs:submit_pbs_calc
 
 requirements:
   build:
@@ -18,3 +22,6 @@ requirements:
     - ase-extensions ==0.1
     - molmod ==1.01
     - cclib
+test:
+  commands:
+    - submit_calc -h
