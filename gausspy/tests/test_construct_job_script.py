@@ -1,5 +1,5 @@
 from unittest import TestCase
-from gausspy.g09_pbs import construct_job_script
+from ..g09_pbs import construct_job_script
 __author__ = 'clyde'
 
 
