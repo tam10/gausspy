@@ -33,7 +33,7 @@ def construct_job_script(procs=None, memory=None, time=None, queue='None', versi
                      '#PBS -l mem={m}mb'.format(m=memory+(procs*100)),
                      '#PBS -l walltime={t}:00:00'.format(t=time),
                      '#PBS -j oe']
-        head_str = "\n".join(lhead_str)
+        head_str = "\n".join(lhead_str) + '\n'
 
     else:
         lhead_str= ['#PBS -l ncpus={p}'.format(p=procs),
@@ -42,7 +42,6 @@ def construct_job_script(procs=None, memory=None, time=None, queue='None', versi
                     '#PBS -j oe',
                     '#PBS -q {q}'.format(q=queue)]
         head_str = "\n".join(lhead_str) + '\n'
-
 
     if 'gdv' not in version:
          ljob_str = ["module load gaussian/{v}".format(v=version),
@@ -62,6 +61,7 @@ def construct_job_script(procs=None, memory=None, time=None, queue='None', versi
     return head_str + "\n".join(ljob_str)
 
 
+#I think there is some crazy reason I'm using this weird string 'None' thing but I can't remember why
 def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None', version=''):
     """Submits gaussian job to the pbs queue"""
 
