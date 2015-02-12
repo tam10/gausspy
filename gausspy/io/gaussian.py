@@ -17,7 +17,7 @@ import cclib.parser.utils as utils
 from ase.atoms import Atoms
 from ase.atom import Atom
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io.gaussian_reader import GaussianReader as GR
+from gausspy.io.gaussian_reader import GaussianReader as GR
 
 # http://www.gaussian.com/g_tech/g_ur/k_dft.htm
 allowed_methods = ['lsda',  # = 'svwn'
@@ -34,6 +34,8 @@ allowed_methods = ['lsda',  # = 'svwn'
                            'tpssh',
                            'tpsstpss',
                            'wb97xd',
+                           'pm6',
+                           'am1',
                            'uff',
                            'huckel',
                           ]
@@ -66,6 +68,12 @@ def read_gaussian_out(filename, index=-1, quantity='atoms', quantities=None):
                 energy = value[-1]
             except TypeError:
                 energy = value
+
+    if energy:
+        energy_set = True
+    else:
+        energy_set = False
+
     try:
 # Re-read in the log file
         f = open(filename, 'r')
@@ -76,7 +84,7 @@ def read_gaussian_out(filename, index=-1, quantity='atoms', quantities=None):
         for n, line in enumerate(lines):
             if 'oniom' in method.lower() and 'extrapolated energy' in line:
                 energy = float(line.split()[4])
-            elif not energy and 'SCF Done' in line:
+            elif not energy_set and 'SCF Done' in line:
                 energy = float(line.split()[4])
 
             if ('Forces (Hartrees/Bohr)' in line):
