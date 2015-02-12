@@ -29,6 +29,7 @@ from ase.calculators.general import Calculator
 
 #solving weird gaussian excentricities
 from ase_extensions.remote import connect_server
+from ase_extensions.remote import qstat_plain
 import gaussian_hacks
 
 #configuration and utilities for running gaussian remotely
@@ -620,14 +621,13 @@ class Gaussian(Calculator):
     def extra_input(self, value):
         self.extra_params['extra_input'] = value
 
-    #todo
     @property
     def active(self):
-        return True
-#        if self.job_params['qid'] in [e.id for e in pbs.qstat_plain()]:
-#            return True
-#        else:
-#            return False
+        if self.job_params['qid'] in [e.id for e in qstat_plain()]:
+            return True
+        else:
+            return False
+
     #todo
     @property
     def job(self):
