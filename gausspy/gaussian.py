@@ -111,7 +111,8 @@ route_str_keys = ['method',
 # specify the keyword, but the keyword itself has several options.
 # Ex:  Opt, Opt=QST2, Opt=Conical, etc.
 # These keywords are given here.
-route_self_keys = ['opt',
+route_self_keys = ['gfprint',
+                   'opt',
                    'force',
                    'freq',
                    'geom',
@@ -165,7 +166,8 @@ extra_list_keys = [ #a list of ASE atoms used by oniom
 extra_keys = ['non_std_route',
               'raw_input',
               'extra_input',
-              'gen_fchk'
+              'gen_fchk',
+              'print_level',
              ]
 
 job_keys = ['nodes',
@@ -291,7 +293,19 @@ class Gaussian(Calculator):
 
     @property
     def scratch_folder(self):
-        return self.config.get('gaussian', 'gauss_scratch')
+        if 'direct' not in self.job_params['version']:
+            return self.config.get('gaussian', 'gauss_scratch')
+        else:
+            # running on the local machine
+            return self.config.get('ase', 'ase_scratch')
+
+    @property
+    def home_folder(self):
+        if 'direct' not in self.job_params['version']:
+            return self.config.get('gaussian', 'gauss_home')
+        else:
+            # running on the local machine
+            return self.config.get('ase', 'ase_home')
 
     # def copy_config(self):
     #     """Creates a copy of the config object"""
@@ -486,19 +500,26 @@ class Gaussian(Calculator):
         if self.extra_params['non_std_route']:
             return '# NonStd\n' + self.extra_params['non_std_route']
 
-        #By default we will always use "#p gfprint pop=full" to start.
-        if 'oniom' in self.route_str_params['basis'].lower() or not self.route_str_params['basis']:
-            route = '#p gfprint %s' % (self.route_str_params['method'])
+
+        #By default we use "#p" to start.
+
+        if not self.extra_params['print_level']:
+            print_char = 'p'
         else:
-            route = '#p gfprint %s/%s' % (self.route_str_params['method'],
-                                  self.route_str_params['basis'])
+            print_char = self.extra_params['print_level']
+
+        if 'oniom' in self.route_str_params['basis'].lower() or not self.route_str_params['basis']:
+            route = '#{p} {m}'.format(p=print_char, m=self.route_str_params['method'])
+        else:
+            route = '#{p} {m}/{b}'.format(p=print_char, m=self.route_str_params['method'],
+                                         b=self.route_str_params['basis'])
 
         # Add keywords and IOp options
         # For the 'self' keywords, there are several suboptions available, and if more
         # than 1 is given, then they are wrapped in ()'s and separated by a ','.
         for key, val in self.route_self_params.items():
             if val:
-                if (val == key):
+                if val == key:
                     route += (' ' + val)
                 else:
                     if ',' in val:
@@ -524,7 +545,7 @@ class Gaussian(Calculator):
                 route += ' %s=%s' % (key, val)
 
         if (self.ioplist):
-            route += ' IOP(' + ' ,'.join(self.ioplist) + ')'
+            route += ' IOP(' + ', '.join(self.ioplist) + ')'
 
         return route
 
@@ -934,11 +955,10 @@ class Gaussian(Calculator):
             inputfile.write(input_str)
 
         # sends input file to server
-        if not self.job_params['version'] == 'direct_g09':
+        if not 'direct' in self.job_params['version'] and not 'user' in self.job_params['version']:
             self.send_to_home(filename)
 
     def _get_scratch_dir(self):
-        #scratch = os.environ['GAUSS_SCRATCH']
         scratch = self.config.get('gaussian', 'gauss_scratch')
 
         try:
@@ -950,21 +970,18 @@ class Gaussian(Calculator):
         return scratch_dir
 
     def _get_home_dir(self):
-        #home = os.environ['GAUSS_HOME']
-        home = self.config.get('gaussian', 'gauss_home')
 
         try:
             active_dir = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
-        home_dir = home + active_dir
+        home_dir = self.home_folder + active_dir
         return home_dir
 
 
     def send_to_home(self, filename):
         """copies the input from the working dir to the server's home directory"""
-        #serv = os.environ['GAUSS_HOST']
         serv = self.config.get('gaussian', 'gauss_host')
 
         home_dir = self._get_home_dir()
@@ -1412,7 +1429,7 @@ class Gaussian(Calculator):
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
-        host_dir = self.config.get('gaussian', 'gauss_home') + active_dir + '/'
+        host_dir = self.home_folder + active_dir + '/'
         scratch_dir = self.scratch_folder + active_dir + '/'
 
         if not self.job_params['version']:
@@ -1423,20 +1440,30 @@ class Gaussian(Calculator):
         else:
             queue = self.job_params['queue']
 
-        #when we are submitting a script containing the calculation object to the cluster
+        # when we are submitting a script containing the calculation object to the cluster
         if self.job_params['version'] == 'direct_g09':
-            command = 'module load gaussian; g09 <{inp}> {out}'.format(inp=host_dir + self.label +'.com', out=scratch_dir + self.label +'.log')
+            command = 'module load gaussian; g09 <{inp}> {out}'.format(inp=host_dir + self.label +'.com',
+                                                                       out=scratch_dir + self.label +'.log')
 
-        #when the script containing the calculation object is being run from the login node
+        # when the script containing the calculation object is being run from the login node
         elif self.job_params['version'] == 'local_g09':
-            command = 'qsub -l ncpus={n},memory={m}mb,time={t}:00:00 -v inp_f={inp},host_d={fld} -q {q} ~/bin/ase_calcs.py '.format(fld=host_dir, inp=self.label + '.com', q=queue, n=self.job_params['nodes'], m=self.job_params['memory'], t=int(self.job_params['time']))
+            command = 'qsub -l ncpus={n},memory={m}mb,time={t}:00:00 -v inp_f={inp},host_d={fld} -q {q} ~/bin/ase_calcs.py '.format(fld=host_dir,
+                                                                                                                                    inp=self.label + '.com',
+                                                                                                                                    q=queue,
+                                                                                                                                    n=self.job_params['nodes'],
+                                                                                                                                    m=self.job_params['memory'],
+                                                                                                                                    t=int(self.job_params['time']))
 
-        #when the script containing the calculation object is being run directly on the machine with gaussian
-        elif self.job_params['version'] == 'user_g09':
-            command = 'g09 <{inp}> {out}'.format(inp=os.getcwd() + self.label +'.com', out=os.getcwd() + self.label +'.log')
+        ##merged with direct
+        # when the script containing the calculation object is being run directly on the machine with gaussian
+        #elif self.job_params['version'] == 'user_g09':
+            # command = 'g09 <{inp}> {out}'.format(inp=os.getcwd().replace(' ', '\ ') + '/' + self.label + '.com',
+            #                                      out=os.getcwd().replace(' ', '\ ') + '/' + self.label + '.log')
+        #    command = 'module load gaussian; g09 <{inp}> {out}'.format(inp=host_dir + self.label + '.com',
+        #                                                               out=scratch_dir + self.label + '.log')
 
 
-        #when the script containing the calculation object is being run remotely and we are going to remote copy across and execute the job
+        # when the script containing the calculation object is being run remotely and we are going to remote copy across and execute the job
         elif 'g09' or 'gdv' in self.job_params['version'] and not 'dev' in self.job_params['version']:
             command = 'submit_calc {fld} {inp} {p} {m} {t} {q} {v}'.format(host= self.config.get('gaussian', 'gauss_host'),
                                                                            fld=host_dir, inp=self.label + '.com', q=queue,
@@ -1450,7 +1477,7 @@ class Gaussian(Calculator):
         if test:
             return command
 
-        elif 'direct' in self.job_params['version'] or 'local' in self.job_params['version']:
+        elif 'direct' in self.job_params['version'] or 'local' in self.job_params['version'] or 'user' in self.job_params['version']:
             os.system(command)
         else:
             ssh = connect_server(ssh=True)
