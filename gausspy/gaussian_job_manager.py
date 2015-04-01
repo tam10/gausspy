@@ -359,14 +359,14 @@ class Job_Manager(object):
 
     #creates and returns an ase_object associated with the current calculation
     def get_calc(self):
-        from ase.io.gaussian import read_gaussian_out
+        from gausspy.io.gaussian import read_gaussian_out
         ase_obj = read_gaussian_out(self.main_calc.label + '.log')
         ase_obj.calc = self.main_calc
         return ase_obj
 
     #creates returns ase_objects associated with all calculations performed
     def get_all_calcs(self):
-        from ase.io.gaussian import read_gaussian_out
+        from gausspy.io.gaussian import read_gaussian_out
         list_ase_objs = []
 
         for calc in self.calcs:
