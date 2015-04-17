@@ -1441,12 +1441,14 @@ class Gaussian(Calculator):
             queue = self.job_params['queue']
 
         # when we are submitting a script containing the calculation object to the cluster
-        if self.job_params['version'] == 'direct_g09':
-            command = 'module load gaussian; g09 <{inp}> {out}'.format(inp=host_dir + self.label +'.com',
-                                                                       out=scratch_dir + self.label +'.log')
+        if 'direct_g09' in self.job_params['version'] or 'direct_gdv' in self.job_params['version']:
+            v = self.job_params['version'].split('direct_')[1]
+            command = 'module load gaussian/{ver}; g09 <{inp}> {out}'.format(inp=host_dir + self.label + '.com',
+                                                                             out=scratch_dir + self.label + '.log',
+                                                                             ver=v)
 
         # when the script containing the calculation object is being run from the login node
-        elif self.job_params['version'] == 'local_g09':
+        elif 'local_g09' in self.job_params['version'] or 'local_gdv' in self.job_params['version']:
             command = 'qsub -l ncpus={n},memory={m}mb,time={t}:00:00 -v inp_f={inp},host_d={fld} -q {q} ~/bin/ase_calcs.py '.format(fld=host_dir,
                                                                                                                                     inp=self.label + '.com',
                                                                                                                                     q=queue,
