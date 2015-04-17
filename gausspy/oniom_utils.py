@@ -75,7 +75,7 @@ def oniom_comp_calcs(atoms_oniom, **kwargs):
     if isinstance(atoms_oniom, list):
         return [list(c) for c in zip(*[oniom_comp_calcs(r, **kwargs) for r in atoms_oniom])]
 
-    proc,mem = atoms_oniom.calc.job_params['nodes'], atoms_oniom.calc.job_params['memory']
+    proc,mem,ver = atoms_oniom.calc.job_params['nodes'], atoms_oniom.calc.job_params['memory'], atoms_oniom.calc.job_params['version']
 
     init_inp_strs = extract_oniom_inputs(atoms_oniom)
     inp_strs = [add_to_input(s, **kwargs) for s in init_inp_strs]
@@ -96,7 +96,7 @@ def oniom_comp_calcs(atoms_oniom, **kwargs):
 
         #the method/basis variables are not used as we are defining raw_input but it is useful to be able to read them later on
         atoms_comp.set_calculator(Gaussian(label=new_label, raw_input=inp_strs[i], method=method, basis=basis))
-        atoms_comp.calc.set_job(nodes=proc, memory=mem)
+        atoms_comp.calc.set_job(nodes=proc, memory=mem, version=ver)
 
         #the input files gaussian produces have no link information so we have to add that manually
         atoms_comp.calc.initialize(atoms_comp)
@@ -132,7 +132,7 @@ def oniom_restart(oniom_atoms, component_calcs):
     return
 
 
-def get_oniom_comp_calcs(oniom_obj, version, frc=False, **kwargs):
+def get_oniom_comp_calcs(oniom_obj, frc=False, **kwargs):
     try:
         calc = oniom_obj.calc
     except AttributeError:
@@ -142,7 +142,6 @@ def get_oniom_comp_calcs(oniom_obj, version, frc=False, **kwargs):
 
     calc.route_str_params['method'] += '=OnlyInputFiles'
     calc.job_params['nodes'], calc.job_params['memory'], calc.job_params['time'] = 1, 100, 1
-    calc.job_params['version'] = version
     calc.start(frc=frc)
 
     #set the job_parameters back to their original values
@@ -187,7 +186,7 @@ def oniom_stable(oniom_obj, component_objs=None, log=2, frc=False):
     calc.label += '_init'
 
     #get_comp_input returns a list of [low_real, high_model, low_model] component calculation objects
-    components = get_oniom_comp_calcs(oniom_obj, frc=frc, version=ver, symmetry='None', stable='opt')
+    components = get_oniom_comp_calcs(oniom_obj, frc=frc, symmetry='None', stable='opt')
 
     #get the different methods oniom will use for the various component calculations
     component_methods = get_oniom_calc_methods(calc.method)
