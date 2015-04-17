@@ -132,7 +132,7 @@ def oniom_restart(oniom_atoms, component_calcs):
     return
 
 
-def get_oniom_comp_calcs(oniom_obj, frc=False, **kwargs):
+def get_oniom_comp_calcs(oniom_obj, version, frc=False, **kwargs):
     try:
         calc = oniom_obj.calc
     except AttributeError:
@@ -142,6 +142,7 @@ def get_oniom_comp_calcs(oniom_obj, frc=False, **kwargs):
 
     calc.route_str_params['method'] += '=OnlyInputFiles'
     calc.job_params['nodes'], calc.job_params['memory'], calc.job_params['time'] = 1, 100, 1
+    calc.job_params['version'] = version
     calc.start(frc=frc)
 
     #set the job_parameters back to their original values
@@ -181,12 +182,12 @@ def oniom_stable(oniom_obj, component_objs=None, log=2, frc=False):
         calc = oniom_obj
 
     #save the no_cpus, memory and label for use later
-    proc, mem, orig_label = calc.job_params['nodes'], calc.job_params['memory'], calc.label
+    proc, mem, ver, orig_label = calc.job_params['nodes'], calc.job_params['memory'], calc.job_params['version'], calc.label
 
     calc.label += '_init'
 
     #get_comp_input returns a list of [low_real, high_model, low_model] component calculation objects
-    components = get_oniom_comp_calcs(oniom_obj, frc=frc, symmetry='None', stable='opt')
+    components = get_oniom_comp_calcs(oniom_obj, frc=frc, version=ver, symmetry='None', stable='opt')
 
     #get the different methods oniom will use for the various component calculations
     component_methods = get_oniom_calc_methods(calc.method)
@@ -251,7 +252,7 @@ def oniom_stable(oniom_obj, component_objs=None, log=2, frc=False):
     final_components = [components[i] if mask[i] and components[i].calc.status == 'Success' else None for i in range(len(components))]
     method = calc.method.replace('=OnlyInputFiles', '')
     calc.restart(label=orig_label, no_old_chk=True, method=method, component_calcs=final_components)
-    calc.set_job(nodes=proc, memory=mem)
+    calc.set_job(nodes=proc, memory=mem, version=ver)
     calc.start(frc)
 
     return oniom_obj
