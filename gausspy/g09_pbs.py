@@ -50,13 +50,23 @@ def construct_job_script(procs=None, memory=None, time=None, queue='None', versi
                 'g09 < $HOME/$FLD$FLNM > $WORK/$FLD${FLNM%.*}.log',
                 'date2=`date "+%d-%m-%y %r"`',
                 'echo "$value: $HOME/$FLD$FLNM finished on $date2" >> /work/{u}/logfile.txt'.format(u=user)]
-    else:
+    elif 'gdv' in version and len(version) < 10:
+        #use standard development module
         ljob_str = [ "module load gaussian/devel-modules\nmodule load {v}".format(v=version.replace('gdv-','gdv')),
                     'date=`date "+%d-%m-%y %r"`',
                     'echo "$value: $HOME/$FLD$FLNM started on $date1" >> /work/{u}/logfile.txt'.format(u=user),
                     'gdv < $HOME/$FLD$FLNM > $WORK/$FLD${FLNM%.*}.log',
                     'date2=`date "+%d-%m-%y %r"`',
                     'echo "$value: $HOME/$FLD$FLNM finished on $date2" >> /work/{u}/logfile.txt'.format(u=user)]
+    elif 'gdv' in version and len(version) >= 10:
+        #use specialised development modules
+        ljob_str = [ "module use /home/gaussian-devel/moremodules\nmodule load gaussian-{v}".format(v=version.replace('gdv-','gdv')),
+            'date=`date "+%d-%m-%y %r"`',
+            'echo "$value: $HOME/$FLD$FLNM started on $date1" >> /work/{u}/logfile.txt'.format(u=user),
+            'gdv < $HOME/$FLD$FLNM > $WORK/$FLD${FLNM%.*}.log',
+            'date2=`date "+%d-%m-%y %r"`',
+            'echo "$value: $HOME/$FLD$FLNM finished on $date2" >> /work/{u}/logfile.txt'.format(u=user)]
+
 
     return head_str + "\n".join(ljob_str)
 
