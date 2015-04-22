@@ -51,7 +51,7 @@ def construct_job_script(procs=None, memory=None, time=None, queue='None', versi
                 'date2=`date "+%d-%m-%y %r"`',
                 'echo "$value: $HOME/$FLD$FLNM finished on $date2" >> /work/{u}/logfile.txt'.format(u=user)]
     else:
-        ljob_str = [ "module use /home/gaussian-devel/moremodules\nmodule load gaussian-{v}".format(v=version.replace('gdv-','')),
+        ljob_str = [ "module load gaussian/devel-modules\nmodule load {v}".format(v=version.replace('gdv-','gdv')),
                     'date=`date "+%d-%m-%y %r"`',
                     'echo "$value: $HOME/$FLD$FLNM started on $date1" >> /work/{u}/logfile.txt'.format(u=user),
                     'gdv < $HOME/$FLD$FLNM > $WORK/$FLD${FLNM%.*}.log',
@@ -106,7 +106,7 @@ def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None', v
             inp_f.writelines(new_contents)
 
     #submission to queue
-    job_id = os.system("cd {f}; qsub -v FLD={f1},FLNM={n} {j}".format(f=fold, f1 = local_fold, n=inp_fn, j=fold+job_fn))
+    job_id = os.system("cd {f}; qsub -v FLD={f1},FLNM={n} {j}".format(f=fold, f1=local_fold, n=inp_fn, j=fold+job_fn))
 
     return job_id
 
