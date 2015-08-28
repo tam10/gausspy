@@ -578,7 +578,8 @@ class Gaussian(Calculator):
 
         return mol_details
 
-    #oniom allows us to read in separate guess wavefunctions for the components of the oniom calculation, we add in these calculations as a 'component_calcs' parameter
+    # oniom allows us to read in separate guess wavefunctions for the components of the oniom calculation,
+    # we add in these calculations as a 'component_calcs' parameter
     def _get_comp_chks(self):
         comp_calcs = self.extra_list_params['component_calcs']
         if self.route_str_params['guess'] != 'input' or not comp_calcs:
@@ -1441,7 +1442,7 @@ class Gaussian(Calculator):
             queue = self.job_params['queue']
 
         # when we are submitting a script containing the calculation object to the cluster
-        if 'direct_g09' in self.job_params['version'] or 'direct_gdv' in self.job_params['version']:
+        if 'direct_' in self.job_params['version'] or 'direct_gdv' in self.job_params['version']:
             v = self.job_params['version'].split('direct_')[1]
             command = 'module load gaussian/{ver}; g09 <{inp}> {out}'.format(inp=host_dir + self.label + '.com',
                                                                              out=scratch_dir + self.label + '.log',
@@ -1666,12 +1667,16 @@ class Gaussian(Calculator):
                 lines += f.readlines()
         except IOError:
             #no log file
-            self._calc_complete = False
+            pass
 
-        if lines and lines[-1].rfind(test) > -1:
-            self._calc_complete = True
-        else:
-            self._calc_complete = False
+        self._calc_complete = False
+        # occasionally the 'termination of Gaussian' message is on the second to last line so we check the last three to
+        # be safe
+        for line in lines[-3:]:
+            if line.rfind(test) > -1:
+                self._calc_complete = True
+                break
+
 
     #todo
     #def read_convergence(self):

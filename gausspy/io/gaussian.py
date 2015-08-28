@@ -10,14 +10,12 @@ See accompanying license files for details.
 
 import os
 import numpy as np
-
-import ase.units
 import cclib.parser.utils as utils
 
 from ase.atoms import Atoms
 from ase.atom import Atom
 from ase.calculators.singlepoint import SinglePointCalculator
-from gausspy.io.gaussian_reader import GaussianReader as GR
+from gaussian_reader import GaussianReader as GR
 
 # http://www.gaussian.com/g_tech/g_ur/k_dft.htm
 allowed_methods = ['lsda',  # = 'svwn'
@@ -62,7 +60,7 @@ def read_gaussian_out(filename, index=-1, quantity='atoms', quantities=None):
     atoms = Atoms(positions=positions, numbers=numbers)
 
     for key, value in data.items():
-        if (key in method):
+        if key in method:
             #covers case where calculation is a scan and hence energy is a list of values not a single one
             try:
                 energy = value[-1]
