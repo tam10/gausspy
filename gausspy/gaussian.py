@@ -367,19 +367,21 @@ class Gaussian(Calculator):
     def set_state_weights(self, weights):
         self.extra_list_params['state_weights'] = weights
 
-    def freeze_atoms(self, atom_nos=None):
+    def freeze_atoms(self, atom_nos):
         """Sets specified atoms to be frozen during an optimisation"""
 
         for atom_no in atom_nos:
-            self.atom_states[atom_no -1] = 1
+            self.atom_states[atom_no-1] = 1
 
-    def unfreeze_atoms(self):
+    def unfreeze_atoms(self, atom_nos=None):
         """Unfreezes any atoms that have been previously frozen"""
+        if not atom_nos:
+            atom_nos = range(len(self.atoms) +1)
 
-        for i in range(len(self.atoms)):
-            self.atom_states[i] = 0
+        for atom_no in atom_nos:
+            self.atom_states[atom_no-1] = 0
 
-    def set_redundant(self, coord_type='', atom_nos = None, action_type='', min=None, max=None, diag=None, frames=None, degrees=None):
+    def set_redundant(self, coord_type='', atom_nos=None, action_type='', min=None, max=None, diag=None, frames=None, degrees=None):
         """Sets redundant internal coordinate parameters:
         coord_type: cartesian/length/angle/dihedral/bend
         action_type: scan/freeze/activate/add/remove/derivatives/diag
@@ -483,6 +485,10 @@ class Gaussian(Calculator):
         if self.extra_list_params['component_calcs'] and not self.route_str_params['guess']:
             self.route_str_params['guess'] = 'input'
 
+        #set default freeze state of all atoms to 0 (unfrozen)
+        if not self.atom_states:
+            self.atom_states = [0 for _ in range(len(self.atoms))]
+
     def _get_link0(self):
         link0 = ''
         for key, val in self.link0_str_params.items():
@@ -571,9 +577,10 @@ class Gaussian(Calculator):
 
         symbols = atoms.get_chemical_symbols()
         coordinates = atoms.get_positions()
+        states = self.atom_states
 
         for i in range(len(atoms)):
-            mol_details += '%-10s' % symbols[i]
+            mol_details += '%-10s %i ' % (symbols[i], states[i])
             for j in range(3):
                 mol_details += '%20.10f' % coordinates[i, j]
             mol_details += '\n'
