@@ -22,12 +22,12 @@ import copy
 from .data_extract_utils import get_last_lines
 from ase_extensions import remote
 import ConfigParser
-
+import functools
 
 config = ConfigParser.RawConfigParser()
 config.read(os.path.expanduser('~/.cc_notebook.ini'))
 
-username, server = config.get('gaussian', 'gauss_host').split('@')
+#, server = config.get('gaussian', 'gauss_host').split('@')
 
 
 class Job(object):
@@ -67,24 +67,42 @@ class Job(object):
         return header
 
 
+def on_server(nodes=1, memory=400, time=1, queue=''):
+    #would be nicer to use nonlocal so that we could just use job all the way through rather than outer_job/job
+    #but this is only available in python 3
+    if nodes == 1 and memory == 400 and time == 1 and not queue:
+        outer_job = None
+    else:
+        outer_job = Job(nodes, memory + nodes * 150, time, queue)
 
-def on_server(fn):
-    """decorator for functions of ASE_objects"""
-    from ase_extensions import ase_utils
+    def on_server_inner(fn):
+        """decorator for functions of ASE_objects"""
+        from ase_extensions import ase_utils
 
-    def server_fn(mol=None, serv_opt=None, *args, **kwargs):
-        if mol:
-            nodes, memory, time, queue = mol.calc.job_params['nodes'], mol.calc.job_params['memory'], mol.calc.job_params['time'], mol.calc.job_params['queue']
-            args=[mol] + list(args)
-            job = Job(nodes, memory + nodes * 150, time, queue)
-            master_fn = (fn,job)
-            return ase_utils.run_on_server(master_fn, *args, **kwargs)
-        elif serv_opt:
-            return ase_utils.run_on_server((fn,serv_opt), *args, **kwargs)
-        else:
-            return ase_utils.run_on_server((fn, Job()), *args, **kwargs)
+        @functools.wraps(fn)
+        def server_fn(mol=None, *args, **kwargs):
 
-    return server_fn
+            job = outer_job
+
+            # if first/mol argument is an ase molecule object with a calculator attached
+            # and job details haven't been specified take the job details from the
+            # calculation
+            if mol and not job:
+                try:
+                    inner_nodes = mol.calc.job_params['nodes']
+                    inner_memory = mol.calc.job_params['memory']
+                    inner_time = mol.calc.job_params['time']
+                    inner_queue = mol.calc.job_params['queue']
+                    job = Job(inner_nodes, inner_memory + inner_nodes * 150, inner_time, inner_queue)
+                except AttributeError:
+                    pass
+
+            # if mol:   ##unnecessary?
+            args = [mol] + list(args)
+
+            return ase_utils.run_on_server((fn, job), *args, **kwargs)
+        return server_fn
+    return on_server_inner
 
 def send_to_cx1_home(filename):
     """sends the input file in the working dir to the server's home directory"""
