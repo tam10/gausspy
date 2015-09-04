@@ -229,6 +229,7 @@ class Gaussian(Calculator):
         self.set(**kwargs)
 
         self.atoms = None
+        self.atom_states = []
         self.positions = None
         self.old_positions = None
         self.old_link0_str_params = None
@@ -264,16 +265,6 @@ class Gaussian(Calculator):
         self._notes = None
         self._calc_complete = None
         self._time = None
-
-        #holds config
-
-#        self.config = ConfigParser.RawConfigParser()
-#        self.config.read(os.path.expanduser('~/.cc_notebook.ini'))
-        #holds runtime info
-        #self.scratch_folder = os.environ['GAUSS_SCRATCH']
-        #self.scratch_folder = self.config.get('gaussian', 'gauss_scratch')
-        #self.base_folder = os.path.realpath(os.environ['ASE_HOME'])
-        #self.base_folder = os.path.realpath(self.config.get('ase', 'ase_home'))
 
         self.check()
 
@@ -375,6 +366,18 @@ class Gaussian(Calculator):
 
     def set_state_weights(self, weights):
         self.extra_list_params['state_weights'] = weights
+
+    def freeze_atoms(self, atom_nos=None):
+        """Sets specified atoms to be frozen during an optimisation"""
+
+        for atom_no in atom_nos:
+            self.atom_states[atom_no -1] = 1
+
+    def unfreeze_atoms(self):
+        """Unfreezes any atoms that have been previously frozen"""
+
+        for i in range(len(self.atoms)):
+            self.atom_states[i] = 0
 
     def set_redundant(self, coord_type='', atom_nos = None, action_type='', min=None, max=None, diag=None, frames=None, degrees=None):
         """Sets redundant internal coordinate parameters:
@@ -766,7 +769,8 @@ class Gaussian(Calculator):
             link_neighbours = [a for a in neighbour_as if a not in non_link_neighbours]
 
             if not link_neighbours:
-                raise RuntimeError('No link atoms defined in layer {l}'.format(l=i))
+                #warnings.warn('No link atoms defined in layer {l}'.format(l=i))
+                links.append([])
             else:
                 links.append(link_neighbours)
         return links
@@ -1441,8 +1445,9 @@ class Gaussian(Calculator):
         else:
             queue = self.job_params['queue']
 
-        # when we are submitting a script containing the calculation object to the cluster
-        if 'direct_' in self.job_params['version'] or 'direct_gdv' in self.job_params['version']:
+        # if the calculation object is to be run directly from the machine executing the gaussian calculator e.g.
+        # we submit a job containing a python script which in turn runs gaussian
+        if 'direct_' in self.job_params['version']:
             v = self.job_params['version'].split('direct_')[1]
             command = 'module load gaussian/{ver}; g09 <{inp}> {out}'.format(inp=host_dir + self.label + '.com',
                                                                              out=scratch_dir + self.label + '.log',
