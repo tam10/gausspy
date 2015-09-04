@@ -370,8 +370,14 @@ class Gaussian(Calculator):
     def freeze_atoms(self, atom_nos):
         """Sets specified atoms to be frozen during an optimisation"""
 
-        for atom_no in atom_nos:
-            self.atom_states[atom_no-1] = 1
+        atom_states = []
+        for i in range(len(self.atoms)):
+            if i+1 in atom_nos:
+                atom_states.append(-1)
+            else:
+                atom_states.append(0)
+
+        self.atom_states = atom_states
 
     def unfreeze_atoms(self, atom_nos=None):
         """Unfreezes any atoms that have been previously frozen"""
