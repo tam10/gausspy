@@ -1501,10 +1501,7 @@ class Gaussian(Calculator):
 
         elif 'direct' in self.job_params['version'] or 'local' in self.job_params['version'] or 'user' in self.job_params['version']:
             os.system(command)
-<<<<<<< HEAD
             self.reset_cached_data()
-=======
->>>>>>> 6d5646ea30c3deff30a08fd5405f1b64cf82da2f
             self.read()
 
         else:
