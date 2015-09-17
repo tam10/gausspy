@@ -44,6 +44,7 @@ from fchk_utils import FCHK
 from ase_extensions.ase_utils import to_molmod
 import oniom_utils
 
+import time
 
 
 """
@@ -1500,6 +1501,8 @@ class Gaussian(Calculator):
 
         elif 'direct' in self.job_params['version'] or 'local' in self.job_params['version'] or 'user' in self.job_params['version']:
             os.system(command)
+            self.read()
+
         else:
             ssh = connect_server(ssh=True)
             command = 'source /etc/bashrc; source /etc/profile ;' + command
@@ -1742,6 +1745,8 @@ class Gaussian(Calculator):
         self.old_basisfile = self.basisfile
         self.old_label = self.label
         self.old_ioplist = self.ioplist[:]
+
+        self.read()
 
     def get_version(self):
         return self.read_output(self.log, 'version')
