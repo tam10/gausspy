@@ -67,7 +67,7 @@ class Job(object):
         return header
 
 
-def on_server(nodes=1, memory=400, time=1, queue=''):
+def on_server(nodes=1, memory=400, time=1, queue='', inc_session=False):
     #would be nicer to use nonlocal so that we could just use job all the way through rather than outer_job/job
     #but this is only available in python 3
     if nodes == 1 and memory == 400 and time == 1 and not queue:
@@ -80,7 +80,7 @@ def on_server(nodes=1, memory=400, time=1, queue=''):
         from ase_extensions import ase_utils
 
         @functools.wraps(fn)
-        def server_fn(mol=None, *args, **kwargs):
+        def server_fn(mol=None, *args,**kwargs):
 
             job = outer_job
 
@@ -100,6 +100,8 @@ def on_server(nodes=1, memory=400, time=1, queue=''):
             # if mol:   ##unnecessary?
             args = [mol] + list(args)
 
+            #add the inc_session keyword
+            kwargs['inc_session'] = inc_session
             return ase_utils.run_on_server((fn, job), *args, **kwargs)
         return server_fn
     return on_server_inner
