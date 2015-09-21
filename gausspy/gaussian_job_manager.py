@@ -87,7 +87,7 @@ def on_server(nodes=1, memory=400, time=1, queue='', inc_session=False):
             # if first/mol argument is an ase molecule object with a calculator attached
             # and job details haven't been specified take the job details from the
             # calculation
-            if mol and not job:
+            if not job:
                 try:
                     inner_nodes = mol.calc.job_params['nodes']
                     inner_memory = mol.calc.job_params['memory']
