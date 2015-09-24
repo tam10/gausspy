@@ -1476,14 +1476,11 @@ class Gaussian(Calculator):
                                                                                                                                     m=self.job_params['memory'],
                                                                                                                                     t=int(self.job_params['time']))
 
-        ##merged with direct
-        # when the script containing the calculation object is being run directly on the machine with gaussian
-        #elif self.job_params['version'] == 'user_g09':
-            # command = 'g09 <{inp}> {out}'.format(inp=os.getcwd().replace(' ', '\ ') + '/' + self.label + '.com',
-            #                                      out=os.getcwd().replace(' ', '\ ') + '/' + self.label + '.log')
-        #    command = 'module load gaussian; g09 <{inp}> {out}'.format(inp=host_dir + self.label + '.com',
-        #                                                               out=scratch_dir + self.label + '.log')
 
+
+	#for the maia cluster in Basel
+        elif 'maia' in self.job_params['version']:
+            command ='gaussian_sub {fld}{inp}'.format(fld=host_dir, inp=self.label + '.com')
 
         # when the script containing the calculation object is being run remotely and we are going to remote copy across and execute the job
         elif 'g09' or 'gdv' in self.job_params['version'] and not 'dev' in self.job_params['version']:
