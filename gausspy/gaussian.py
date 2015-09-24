@@ -1466,14 +1466,14 @@ class Gaussian(Calculator):
             #g09_d.01
             maia_v = cx1_v.replace('-','_')[:-2] + '.' + cx1_v[-2:] 
 
-            #user ='huangbi'
-            temp_dir = '/tmp/$USER{base_name}/'.format(base_name=active_dir)
-            command = 'module load gaussian/{ver};'.format(ver=maia_v) + \
-                      'mkdir -p {tmp_dir};'.format(tmp_dir=temp_dir) + \
-                      'export GAUSS_SCRDIR={tmp_dir};'.format(tmp_dir=temp_dir) + \
-	              '$GAUSSIAN_EXE {inp} {out};'.format(inp=host_dir + self.label + '.com',out=temp_dir + self.label + '.log') + \
-                      'cp {tmp_out} {home_out};'.format(tmp_out=temp_dir + self.label + 'log', home_out= scratch_dir + self.label + '.log')
+            #temp_dir = '/tmp/$USER{base_name}/'.format(base_name=active_dir)
+            #command = 'module load gaussian/{ver};'.format(ver=maia_v) + \
+            #          'mkdir -p {tmp_dir};'.format(tmp_dir=temp_dir) + \
+            #          'export GAUSS_SCRDIR={tmp_dir};'.format(tmp_dir=temp_dir) + \
+	    #          '$GAUSSIAN_EXE {inp} {out};'.format(inp=host_dir + self.label + '.com',out=temp_dir + self.label + '.log') + \
+            #          'cp {tmp_out} {home_out};'.format(tmp_out=temp_dir + self.label + '.log', home_out= scratch_dir + self.label + '.log')
 
+            command = 'local_gaussian_sub {fn}'.format(fn=host_dir + self.label + '.com')
 	# if the calculation object is to be run directly from the machine executing the gaussian calculator e.g.
         # we submit a job containing a python script which in turn runs gaussian
         elif 'direct_' in self.job_params['version']:
