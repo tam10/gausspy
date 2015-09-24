@@ -1459,9 +1459,24 @@ class Gaussian(Calculator):
         else:
             queue = self.job_params['queue']
 
-        # if the calculation object is to be run directly from the machine executing the gaussian calculator e.g.
+        
+	if 'maia_direct_' in self.job_params['version']:
+            #g09-d01
+            cx1_v = self.job_params['version'].split('maia_direct_')[1]
+            #g09_d.01
+            maia_v = cx1_v.replace('-','_')[:-2] + '.' + cx1_v[-2:] 
+
+            #user ='huangbi'
+            temp_dir = '/tmp/$USER{base_name}/'.format(base_name=active_dir)
+            command = 'module load gaussian/{ver};'.format(ver=maia_v) + \
+                      'mkdir -p {tmp_dir};'.format(tmp_dir=temp_dir) + \
+                      'export GAUSS_SCRDIR={tmp_dir};'.format(tmp_dir=temp_dir) + \
+	              '$GAUSSIAN_EXE {inp} {out};'.format(inp=host_dir + self.label + '.com',out=temp_dir + self.label + '.log') + \
+                      'cp {tmp_out} {home_out};'.format(tmp_out=temp_dir + self.label + 'log', home_out= scratch_dir + self.label + '.log')
+
+	# if the calculation object is to be run directly from the machine executing the gaussian calculator e.g.
         # we submit a job containing a python script which in turn runs gaussian
-        if 'direct_' in self.job_params['version']:
+        elif 'direct_' in self.job_params['version']:
             v = self.job_params['version'].split('direct_')[1]
             command = 'module load gaussian/{ver}; g09 <{inp}> {out}'.format(inp=host_dir + self.label + '.com',
                                                                              out=scratch_dir + self.label + '.log',
