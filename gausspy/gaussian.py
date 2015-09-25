@@ -1473,7 +1473,7 @@ class Gaussian(Calculator):
 	    #          '$GAUSSIAN_EXE {inp} {out};'.format(inp=host_dir + self.label + '.com',out=temp_dir + self.label + '.log') + \
             #          'cp {tmp_out} {home_out};'.format(tmp_out=temp_dir + self.label + '.log', home_out= scratch_dir + self.label + '.log')
 
-            command = 'local_gaussian_sub {fn}'.format(fn=host_dir + self.label + '.com')
+            command = 'local_gaussian_sub.py {fn}'.format(fn=host_dir + self.label + '.com')
 	# if the calculation object is to be run directly from the machine executing the gaussian calculator e.g.
         # we submit a job containing a python script which in turn runs gaussian
         elif 'direct_' in self.job_params['version']:
@@ -1518,7 +1518,7 @@ class Gaussian(Calculator):
 
         else:
             ssh = connect_server(ssh=True)
-            command = 'source /etc/bashrc; source /etc/profile ;' + command
+            command = 'source /etc/bashrc; source /etc/profile; source /home/$USER/.bashrc; ' + command
             stdin, stdout, stderr = ssh.exec_command(command)
             self.job_params['qid'] = stdout.read().split('.')[0]
             ssh.close()
