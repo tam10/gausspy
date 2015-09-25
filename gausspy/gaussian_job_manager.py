@@ -31,11 +31,12 @@ config.read(os.path.expanduser('~/.cc_notebook.ini'))
 
 
 class Job(object):
-    def __init__(self, procs=1, memory=400, walltime=1, queue=None):
+    def __init__(self, procs=1, memory=400, walltime=1, queue=None, out=''):
         self.procs = procs
         self.memory = memory
         self.walltime = walltime
         self.queue = queue
+        self.out = out
 
     def exec_command(self, script_fn):
         """creates command to submit the given script to pbs with the given kwargs using the class job options"""
@@ -46,34 +47,31 @@ class Job(object):
         return command
 
     def gen_header(self):
+       
+        header = "#PBS -l ncpus={n}\n".format(n=self.procs) + \
+                 "#PBS -l walltime={t}:00:00\n".format(t=self.walltime) + \
+                 "#PBS -l mem={m}mb\n".format(m=self.memory) + \
+                 "#PBS -q {q}\n".format(q=self.queue) + \
+                 "#PBS -j oe\n"
+
         if self.queue:
-            header = """#PBS -l ncpus={n}
-#PBS -l walltime={t}:00:00
-#PBS -l mem={m}mb
-#PBS -q {q}
-#PBS -j oe
-#PBS -V
-
-""".format(n=self.procs, t=self.walltime, m=self.memory, q=self.queue)
-        else:
-            header = """#PBS -l ncpus={n}
-#PBS -l walltime={t}:00:00
-#PBS -l mem={m}mb
-#PBS -j oe
-#PBS -V
-
-""".format(n=self.procs, t=self.walltime, m=self.memory)
+            header +=  "#PBS -q {q}\n".format(q=self.queue)
+        if self.out:
+            header += "#PBS -e {e}\n".format(e=self.out)
+            header += "#PBS -o {o}\n".format(o=self.out)
+            
+        header += "#PBS -V\n\n"
 
         return header
 
 
-def on_server(nodes=1, memory=400, time=1, queue='', inc_session=False):
+def on_server(nodes=1, memory=400, time=1, queue='', out='', inc_session=False):
     #would be nicer to use nonlocal so that we could just use job all the way through rather than outer_job/job
     #but this is only available in python 3
-    if nodes == 1 and memory == 400 and time == 1 and not queue:
+    if nodes == 1 and memory == 400 and time == 1 and not queue and not out:
         outer_job = None
     else:
-        outer_job = Job(nodes, memory + nodes * 150, time, queue)
+        outer_job = Job(nodes, memory + nodes * 150, time, queue, out)
 
     def on_server_inner(fn):
         """decorator for functions of ASE_objects"""
