@@ -116,7 +116,7 @@ def submit_job(fold, inp_fn, procs=None, memory=None, time=None, queue='None', v
             inp_f.writelines(new_contents)
 
     #submission to queue
-    job_id = os.system("cd {f}; qsub -v FLD={f1},FLNM={n} {j}".format(f=fold, f1=local_fold, n=inp_fn, j=fold+job_fn))
+    job_id = os.system("mkdir -p {wrk};cd {f}; qsub -v FLD={f1},FLNM={n} {j}".format(wrk=work_dir, f=fold, f1=local_fold, n=inp_fn, j=fold+job_fn))
 
     return job_id
 

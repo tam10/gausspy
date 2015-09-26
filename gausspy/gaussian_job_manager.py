@@ -51,7 +51,6 @@ class Job(object):
         header = "#PBS -l ncpus={n}\n".format(n=self.procs) + \
                  "#PBS -l walltime={t}:00:00\n".format(t=self.walltime) + \
                  "#PBS -l mem={m}mb\n".format(m=self.memory) + \
-                 "#PBS -q {q}\n".format(q=self.queue) + \
                  "#PBS -j oe\n"
 
         if self.queue:
