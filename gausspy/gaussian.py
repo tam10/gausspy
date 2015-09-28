@@ -481,7 +481,7 @@ class Gaussian(Calculator):
             local_fold = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
-        work_fold = self.scratch_folder + local_fold + '/'
+        work_fold = os.path.join(self.scratch_folder + local_fold, '')
 
         self.link0_str_params['chk'] = work_fold + self.label + '.chk'
 
@@ -606,7 +606,7 @@ class Gaussian(Calculator):
             comp_calcs = [self.label + '_low_real', self.label + '_high_model', self.label + '_low_model']
 
         scratch_dir = self._get_scratch_dir()
-        chk_commands = [scratch_dir + '/' + c.calc.label+'.chk' if c else 'generate' for c in self.extra_list_params['component_calcs']]
+        chk_commands = [os.path.join(scratch_dir, '') + c.calc.label+'.chk' if c else 'generate' for c in self.extra_list_params['component_calcs']]
         return '\n'+'\n\n'.join(chk_commands) + '\n'
 
 
@@ -617,7 +617,7 @@ class Gaussian(Calculator):
         work_dir = self.config.get('ase', 'ase_scratch')
 
         try:
-            log = work_dir + current_dir.split(self.base_folder)[1] + '/' + self.label + '.log'
+            log = os.path.join(work_dir + current_dir.split(self.base_folder)[1], '') + self.label + '.log'
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
@@ -630,7 +630,7 @@ class Gaussian(Calculator):
         work_dir = self.config.get('ase', 'ase_scratch')
 
         try:
-            fchk = work_dir + current_dir.split(self.base_folder)[1] + '/' + self.label + '.fchk'
+            fchk = os.path.join(work_dir + current_dir.split(self.base_folder)[1],'')  + self.label + '.fchk'
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
@@ -1037,7 +1037,7 @@ class Gaussian(Calculator):
         """generates fchk file from chk point file for the molecule specified assumes chk point file exists in the scratch directory"""
 
         ssh, sftp = connect_server(ssh=True, sftp=True)
-        serv_file = self._get_scratch_dir() + '/' + self.label + '.fchk'
+        serv_file = os.path.join(self._get_scratch_dir(), '') + self.label + '.fchk'
 
         try:
             sftp.stat(serv_file)
@@ -1053,7 +1053,7 @@ class Gaussian(Calculator):
             warnings.warn('.fchk file already generated, overwriting')
 
         if not fchk_exists or frc:
-            i,o,e = ssh.exec_command('/home/gaussian-devel/gaussiandvh13_pgi_118/gdv/formchk {fn}'.format(fn=self._get_scratch_dir() + '/' + self.label+'.chk'))
+            i,o,e = ssh.exec_command('/home/gaussian-devel/gaussiandvh13_pgi_118/gdv/formchk {fn}'.format(fn=os.path.join(self._get_scratch_dir(),'') + self.label+'.chk'))
             formchk_error = e.readlines()
             ssh.close()
             return not bool(formchk_error)
@@ -1066,8 +1066,8 @@ class Gaussian(Calculator):
 
         cubegen_loc = '/home/gaussian-devel/gaussiandvh13_pgi_118/gdv/cubegen'
 
-        fchk_fn = self._get_scratch_dir() + '/' + self.label + '.fchk'
-        cube_fn = self._get_scratch_dir() + '/' + self.label + '_' + type + '.cube'
+        fchk_fn = os.path.join(self._get_scratch_dir(),'') + self.label + '.fchk'
+        cube_fn = os.path.join(self._get_scratch_dir(),'') + self.label + '_' + type + '.cube'
 
         ssh, sftp = connect_server(ssh=True, sftp=True)
 
@@ -1448,8 +1448,8 @@ class Gaussian(Calculator):
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
 
-        host_dir = self.home_folder + active_dir + '/'
-        scratch_dir = self.scratch_folder + active_dir + '/'
+        host_dir = os.path.join(self.home_folder + active_dir, '')
+        scratch_dir = os.path.join(self.scratch_folder + active_dir, '')
 
         if not self.job_params['version']:
             self.job_params['version'] = 'direct_g09'
@@ -1589,7 +1589,7 @@ class Gaussian(Calculator):
             active_dir = os.getcwd().split(self.base_folder)[1]
         except IndexError:
             raise RuntimeError('Not running from within ASE_HOME')
-        host_dir = self.scratch_folder + active_dir + '/'
+        host_dir = os.path.join(self.scratch_folder + active_dir, '')
 
         restart_chk = host_dir + restart_chk
 
