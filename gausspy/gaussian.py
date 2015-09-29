@@ -1474,7 +1474,11 @@ class Gaussian(Calculator):
             v = self.job_params['version'].split('direct_')[1]
             
             #make sure the scratch directory exists
-            command = 'mkdir -p {out_dir};'.format(out_dir=scratch_dir)
+            if scratch_dir:
+                command = 'mkdir -p {out_dir};'.format(out_dir=scratch_dir)
+            else:
+                command = ''
+            
             command += 'module load gaussian/{ver}; g09 <{inp}> {out};'.format(inp=host_dir + self.label + '.com',
                                                                              out=scratch_dir + self.label + '.log',
                                                                              ver=v)
