@@ -64,7 +64,7 @@ class Job(object):
         return header
 
 
-def on_server(nodes=1, memory=400, time=1, queue='', out='', inc_session=False):
+def on_server(nodes=1, memory=400, time=1, queue='', out='', inc_session=False, savefiles='*', compress=False):
     #would be nicer to use nonlocal so that we could just use job all the way through rather than outer_job/job
     #but this is only available in python 3
     if nodes == 1 and memory == 400 and time == 1 and not queue and not out:
@@ -97,8 +97,13 @@ def on_server(nodes=1, memory=400, time=1, queue='', out='', inc_session=False):
             # if mol:   ##unnecessary?
             args = [mol] + list(args)
 
-            #add the inc_session keyword
+            if 'inc_session' in kwargs.keys() or 'savefiles' in kwargs.keys() or 'compress' in kwargs.keys():
+                raise RunTimeError('Decorator overwriting function variables!')
+
+            #add the inc_session, savefiles and compress keywords
             kwargs['inc_session'] = inc_session
+            kwargs['savefiles'] = savefiles
+            kwargs['compress'] = compress
             return ase_utils.run_on_server((fn, job), *args, **kwargs)
         return server_fn
     return on_server_inner
