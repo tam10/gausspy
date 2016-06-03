@@ -14,7 +14,7 @@ def extract_oniom_inputs(atoms):
     with open(atoms.calc.log, 'r') as log_f:
         contents = log_f.readlines()
 
-    if not any('OnlyInputFiles' in l for l in contents):
+    if not any('=OnlyInputFiles' in l for l in contents):
         raise RuntimeError('Can only extract input from ONIOM calculations run with =OnlyInputFiles')
 
     input_starts = [i for i,e in enumerate(contents) if '#P' in e or '#p' in e][1:-1]
@@ -258,3 +258,4 @@ def oniom_stable(oniom_obj, component_objs=None, log=2, frc=False):
 
 def oniom_parser():
     return
+    

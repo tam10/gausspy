@@ -43,6 +43,7 @@ from fchk_utils import FCHK
 #molecular utilities for consturcting oniom input files
 from ase_extensions.ase_utils import to_molmod
 import oniom_utils
+from cc_utils.chem_utils import write_gauss_amber_params, update_amber_params
 
 import time
 
@@ -200,7 +201,8 @@ class Gaussian(Calculator):
         self.extra_list_params = dict()
         self.extra_params = dict()
         self.job_params = dict()
-        self.redundant_coord_params = []
+        self.amber_params = dict()          #Added by tam10
+        self.redundant_coord_params = []   
 
         for key in link0_int_keys:
             self.link0_int_params[key] = None
@@ -243,6 +245,7 @@ class Gaussian(Calculator):
         self.old_basisfile = None
         self.old_label = None
         self.old_ioplist = None
+        self._params_str = ""  #Added by Tristan
 
         self.basisfile = basisfile
         self.label = label
@@ -565,14 +568,27 @@ class Gaussian(Calculator):
 
         return route
 
-    def _get_mol_details(self, atoms):
+    def _get_mol_details(self, atoms):                                          #Editing this to allow handling of amber params
         """returns the atomic configuration of the gaussian input file"""
 
         if 'allcheck' in self.route_self_params['geom'].lower():
             return ''
 
-        if 'oniom' in self.route_str_params['method']:
+        #if 'oniom' in self.route_str_params['method']:
+        #    return self._get_oniom_details(atoms)
+
+        if 'oniom' in self.route_str_params['method'] and not 'amber' in self.route_str_params['method']:
             return self._get_oniom_details(atoms)
+
+        if 'oniom' in self.route_str_params['method'] and 'amber' in self.route_str_params['method']:
+            if hasattr(atoms,"get_ambers"):
+                return self._get_amber_oniom_details(atoms)
+            else:
+                raise RuntimeError("Atoms object must be an ASE Protein Atoms object")
+
+#To do:
+        if not 'oniom' in self.route_str_params['method'] and 'amber' in self.route_str_params['method']:
+            return self._get_amber_details(atoms)
 
         mol_details = ''
 
@@ -1767,3 +1783,191 @@ class Gaussian(Calculator):
 
     def get_name(self):
         return self.__class__.__name__
+
+#   *** ADDING NEW STUFF HERE ***
+
+    def set_amber_params(self,params):
+        """Adds Amber parameters to the calculator.
+        Use either a list or a dictionary."""
+        if isinstance(params,dict):
+            self.amber_params=params
+        elif isinstance(params,list):
+            final_params=params[0]
+            for param_obj in params:
+                final_params=update_amber_params(final_params,param_obj,overwrite=True)
+            self.amber_params=final_params
+        else:
+            raise TypeError("'params' must be either a dictionary of parameters or a list of dictionaries of parameters")
+        
+    def get_amber_params(self):
+        return self.amber_params
+        
+    def write_params_string(self, atoms):
+        new_types=[p for p in self.amber_params['types'] if p.get('element') in atoms.get_ambers()]
+        self.amber_params['types']=new_types
+        self._params_str=write_gauss_amber_params(self.amber_params)
+        
+    def _get_connectivity(self, atoms):
+        neighbours=atoms.get_neighbours()
+        return "".join([str(i+1)+" "+"".join([str(a+1)+" 1.0 " for a in n if a>i])+"\n" for i,n in enumerate(neighbours)])
+            
+        
+    def _get_amber_oniom_details(self, atoms):
+        if 'check' in self.route_self_params['geom'].lower():
+            return '' + self._get_comp_chks()
+
+        oniom_method = self.route_str_params['method'].split('oniom(')[1][0:-1]
+        no_layers = len(oniom_method.split(':'))
+
+        if not self.oniom_coord_params['layers'] or len(self.oniom_coord_params['layers']) != no_layers - 1 or no_layers < 2:
+            raise RuntimeError('Incorrect specification of layers for Oniom calculation')
+        elif all(isinstance(l, Atoms) for l in self.oniom_coord_params['layers']):
+            list_atoms = [a for a in atoms]
+            try:
+                layers = [[list_atoms.index(a) for a in l] for l in self.oniom_coord_params['layers']]
+            except ValueError:
+                raise RuntimeError('Atoms in a layer do not match any atoms in the total molecule - check the coordinates of your fragment')
+        else:
+            layers = self.oniom_coord_params['layers']
+
+        if not self.oniom_coord_params['links']:
+            links = self.get_links(atoms, layers)
+        else:
+            links = self.oniom_coord_params['links']
+
+        if not self.oniom_coord_params['link_connections']:
+            link_cons = self.get_link_cons(atoms, layers, links)
+        else:
+            link_cons = self.oniom_coord_params['link_connections']
+
+        if len(link_cons) != len(links):
+            raise RuntimeError('Oniom calculation attempted with different number of link atoms and link connections')
+
+        #everything not specified by layers gets assigned to 'L'
+        if no_layers == 2:
+            layer_chars = ['H']
+        elif no_layers == 3:
+            layer_chars = ['H', 'M']
+        else:
+            raise NotImplementedError('Oniom calculations only implemented for 2 or 3 layers')
+
+        layer_charge_strs = []
+        atom_coord_strs = []
+
+        #set layer specified variables
+        #layers have been reversed as gaussian reads real before intermediate before model
+        for i in list(reversed(range(no_layers))):
+            if i != no_layers -1:
+                atom_indexes = layers[i]
+                layer_atoms = atoms[atom_indexes]
+                layer_charge = int(round(sum(layer_atoms.get_amber_charges()),0))
+                layer_electrons_neutral = sum(layer_atoms.get_atomic_numbers())
+                link_electrons = len(links[i])
+            else:
+                #last layer is 'L' and includes all atoms not earmarked for a higher layer
+                atom_indexes =[ind for ind in range(len(atoms)) if ind not in [e for l in layers for e in l]]
+                layer_charge = int(round(sum(atoms.get_amber_charges()),0))
+                layer_electrons_neutral = sum(atoms.get_atomic_numbers())
+                link_electrons = 0
+
+            if self.oniom_coord_params['layer_mults']:
+                layer_multiplicity = self.oniom_coord_params['layer_mults'][i]
+            else:
+                layer_multiplicity = (layer_electrons_neutral - layer_charge + link_electrons) % 2 + 1 #Check len(links corresponds to number of link atoms)
+            layer_charge_strs.append("{c} {m} ".format(c=layer_charge, m=layer_multiplicity))
+        
+        for i, a in enumerate(atoms):
+            a_symbol = str(a.symbol) if a.symbol is not None else ''
+            a_ambertype = str(a.amber) if a.amber is not None else ''
+            a_amber_charge = str(a.amber_charge) if a.charge is not None else ''
+            a_pdbtype = str(a.pdb) if a.pdb is not None else ''
+            a_residue = str(a.residue) if a.residue is not None else ''
+            a_resnum = str(a.resnum) if a.resnum is not None else ''
+            a_layer = 'L'
+            a_link_con = None
+
+
+            for j in range(no_layers):
+                #last layer always 'L'
+                if j!= no_layers-1 and i in layers[j]:
+                    a_layer = layer_chars[j]
+                    #first layer always 'H' hence never has link atoms
+                if j>0 and i in links[j-1]:
+                    link_ind = links[j-1].index(i)
+                    a_link_con = link_cons[j-1][link_ind]
+            
+            atstr=a_symbol+"-"+a_ambertype+"-"+a_amber_charge+"(PDBName="+a_pdbtype+",ResName="+a_residue+",ResNum="+a_resnum+")"
+            line_strs = ['%-50s' % atstr]
+            #indicates the atom is free, should really make this a variable
+            line_strs.append('%-2s' % 0)
+            line_strs += ['%20.10f' % a.position[k] for k in range(3)]
+            line_strs.append(' %-2s' % a_layer)
+
+            #link_connections are the index of the higher level atom that the link connects to, if it's the first atom i.e. index 0 this if statement will fail because
+            #of the boolean nature of 0 in python so we have to consider that situation specifically
+      
+            if a_link_con or a_link_con == 0:
+                if atoms[a_link_con].symbol=='C':
+                    amber_link='HC'
+                else:
+                    amber_link='H'
+                link_str='H-'+amber_link
+                line_strs.append('%-5s' % link_str)
+                #Gaussian uses Fortran style arrays
+                line_strs.append('%-1s' % (a_link_con+1))
+
+            atom_coord_strs.append("".join(line_strs))
+
+        layer_coord_strs = "\n".join(atom_coord_strs)
+        
+        self.write_params_string(atoms)
+        
+        if 'connectivity' in self.route_self_params['geom'].lower():
+            connectivity_string=self._get_connectivity(atoms) + "\n"
+    
+        return " ".join(layer_charge_strs) + "\n" + "".join(layer_coord_strs) + "\n\n" + connectivity_string + self._get_comp_chks() + "\n" + self._params_str +"\n\n"
+        
+    def _get_amber_details(self, atoms):
+        if 'check' in self.route_self_params['geom'].lower():
+            return '' + self._get_comp_chks()
+            
+        layer_charge_strs = []
+        atom_coord_strs = []
+        
+        mol_charge = int(round(sum(atoms.get_amber_charges()),0))
+        electrons_neutral = sum(atoms.get_atomic_numbers())
+
+        if self.multiplicity:
+            layer_multiplicity = self.multiplicity
+        else:
+            layer_multiplicity = (electrons_neutral-mol_charge) % 2 + 1
+        layer_charge_strs.append("{c} {m} ".format(c=mol_charge, m=layer_multiplicity))
+            
+        for i, a in enumerate(atoms):
+            a_symbol = str(a.symbol) if a.symbol is not None else ''
+            a_ambertype = str(a.amber) if a.amber is not None else ''
+            a_amber_charge = str(a.amber_charge) if a.charge is not None else ''
+            a_pdbtype = str(a.pdb) if a.pdb is not None else ''
+            a_residue = str(a.residue) if a.residue is not None else ''
+            a_resnum = str(a.resnum) if a.resnum is not None else ''
+            
+            atstr=a_symbol+"-"+a_ambertype+"-"+a_amber_charge+"(PDBName="+a_pdbtype+",ResName="+a_residue+",ResNum="+a_resnum+")"
+            line_strs = ['%-50s' % atstr]
+            #indicates the atom is free, should really make this a variable
+            line_strs.append('%-2s' % 0)
+            line_strs += ['%20.10f' % a.position[k] for k in range(3)]
+
+            #link_connections are the index of the higher level atom that the link connects to, if it's the first atom i.e. index 0 this if statement will fail because
+            #of the boolean nature of 0 in python so we have to consider that situation specifically
+
+            atom_coord_strs.append("".join(line_strs))
+
+        layer_coord_strs = "\n".join(atom_coord_strs)
+        
+        self.write_params_string(atoms)
+        
+        if 'connectivity' in self.route_self_params['geom'].lower():
+            connectivity_string=self._get_connectivity(atoms) + "\n"
+    
+        return " ".join(layer_charge_strs) + "\n" + "".join(layer_coord_strs) + "\n\n" + connectivity_string + self._get_comp_chks() + "\n" + self._params_str +"\n\n"
+        
