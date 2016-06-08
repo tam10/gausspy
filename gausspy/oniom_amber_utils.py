@@ -178,8 +178,6 @@ def protonate(atoms,
                 a.tag = tags.pop()
             except(IndexError):
                 a.tag = 0
-    
-   # master = pdb2pqr_protonate(sr, nsr_amber, pdb2pqr_path, ph, (d > 1))
         
     if d > 4:
         r_dict['all']['merged'] = master

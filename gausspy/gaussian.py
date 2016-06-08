@@ -1896,8 +1896,8 @@ class Gaussian(Calculator):
                     link_ind = links[j-1].index(i)
                     a_link_con = link_cons[j-1][link_ind]
             
-            atstr=a_symbol+"-"+a_ambertype+"-"+a_amber_charge+"(PDBName="+a_pdbtype+",ResName="+a_residue+",ResNum="+a_resnum+")"
-            line_strs = ['%-50s' % atstr]
+            at_str=a_symbol+"-"+a_ambertype+"-"+a_amber_charge+"(PDBName="+a_pdbtype+",ResName="+a_residue+",ResNum="+a_resnum+")"
+            line_strs = ['%-50s' % at_str]
             #indicates the atom is free, should really make this a variable
             line_strs.append('%-2s' % 0)
             line_strs += ['%20.10f' % a.position[k] for k in range(3)]
