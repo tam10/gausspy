@@ -245,7 +245,7 @@ class Gaussian(Calculator):
         self.old_basisfile = None
         self.old_label = None
         self.old_ioplist = None
-        self._params_str = ""  #Added by Tristan
+        self._params_str = ""  #Added by tam10
 
         self.basisfile = basisfile
         self.label = label
@@ -586,7 +586,6 @@ class Gaussian(Calculator):
             else:
                 raise RuntimeError("Atoms object must be an ASE Protein Atoms object")
 
-#To do:
         if not 'oniom' in self.route_str_params['method'] and 'amber' in self.route_str_params['method']:
             return self._get_amber_details(atoms)
 

@@ -85,6 +85,12 @@ class Protein_Parameterisation(object):
                 nsr_detect_lines = filestr.split('(omitted below):\n')[1].split('This is usually due to')[0].split('\n')[:-1]
                 nsr_indices = list(set([int(ndl.split()[-1]) for ndl in nsr_detect_lines]))
                 return sorted(nsr_indices)
+            if 'WARNING: Unable to debump' in filestr:
+                warn_res_lines = [l.strip() for l in filestr.split('\n') if 'WARNING: Unable to debump' in l]
+                warn_resnums = [[r.split()[-1],r.split()[-3]] for r in warn_res_lines]
+                warn_res_str = ", ".join(["{r} ({rn})".format(r = r, rn = rn) for r, rn in warn_resnums])
+                warn_str = "NSR detection failed for residues: {r}.\nRename these residues with non-standard names to fix.".format(r = warn_res_str)
+                warnings.warn(warn_str)
             else:
                 return []
 
@@ -232,29 +238,28 @@ class Protein_Parameterisation(object):
                 atoms = self._p.initial_atoms
 
             ni = self._p.params["NSR Resnums"]
+            if not ni:
+                return []
 
             indices_dict = {resnum: atoms.take(resnums = resnum, indices_in_tags = True).get_tags() for resnum in ni}
             neighbours = atoms.get_neighbours()
             neighbours_dict = {neighbour_resnum: [neighbours[neighbour_index] 
                                for neighbour_index in neighbour_indices] 
                                for neighbour_resnum, neighbour_indices in indices_dict.iteritems()}
-            connected_residues = [[resnum, neighbours_resnum] for neighbours_resnum, neighbours_indices in neighbours_dict.iteritems() 
+            connected_residues = [{resnum, neighbours_resnum} for neighbours_resnum, neighbours_indices in neighbours_dict.iteritems() 
                                   for resnum, indices in indices_dict.iteritems()
                                   if neighbours_resnum > resnum and len(np.intersect1d([a for b in neighbours_indices for a in b], indices)) > 0]
             
             merged_connected_residues = []
-            for i, this_r in enumerate(connected_residues):
-                if all([this_r[0] != other_r[-1] for o, other_r in enumerate(connected_residues) if i != o]):
-                    merged_connected_residue = copy.deepcopy(this_r)
-                    add_r = [merged_connected_residue[-1]]
-                    while True:
-                        add_r = [other_r[-1] for o, other_r in enumerate(connected_residues) if (other_r[0] in add_r) and i != o]
-                        if add_r:
-                            merged_connected_residue += add_r
-                        else:
-                            break
-                    merged_connected_residues += [merged_connected_residue]
-                    print(merged_connected_residue)
+            while len(connected_residues) > 0:
+                this_r, other_rs = connected_residues[0], connected_residues[1:]
+                connected_residues = []
+                for other_r in other_rs:
+                    if len(this_r.intersection(other_r)) > 0:
+                        this_r |= other_r
+                    else:
+                        connected_residues.append(other_r)
+                merged_connected_residues.append(list(this_r))
             merged_connected_residues += [[n] for n in ni if all([n not in mcr for mcr in merged_connected_residues])]
             
             return merged_connected_residues
@@ -337,7 +342,7 @@ class Protein_Parameterisation(object):
             prot_nsrs = []
             
             self.prot_sr = self.Utils.pdb2pqr_protonate(self.initial_atoms, 'nsr_detection')
-            self.params["NSR Resnums"] = self.Utils.detect_nsrs('nsr_detection')    
+            self.params["NSR Resnums"] = self.Utils.detect_nsrs('nsr_detection')
             mc_nsrs = self._hidden_params["Merged Connected NSR Resnum Groups"] = self.Utils.merge_connected_nsr_indices()
             
             if isinstance(nns, str):
@@ -391,7 +396,7 @@ class Protein_Parameterisation(object):
         finally:
             self.Utils._cd_out()
             
-    def fix_charges(self):
+    def get_nsr_charges(self):
         for nsr_name in self.params["NSR Names"]:
             prot_nsr = self.protonated_nsrs[nsr_name]
             self.pc_nsrs[nsr_name] = self.Utils.calculate_partial_charges(prot_nsr, nsr_name)
@@ -483,3 +488,6 @@ class Protein_Parameterisation(object):
             self.add_atom_parameters(pc_nsr, name)
         if self.model_region is not None:
             self.add_atom_parameters(self.model_region, "model_region")
+            
+    def get_final_model_atomnos(self):
+        return self._hidden_params["Final Model Atom Numbers"]
