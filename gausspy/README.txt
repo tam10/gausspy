@@ -76,13 +76,13 @@
 *                              *
 ********************************
 
-1.2 Overview
+1.2 OVERVIEW
 
 protonate() takes in a Chain as an ASE Protein Atoms object along with the
 NSR indices (residue numbers) and separately protonates the NSRs and SRs.
 It returns the protonated chain.
 
-1.3 Usage
+1.3 USAGE
 
 atoms:
  The chain to be protonated, consisting of standard and non-standard residues.
@@ -127,7 +127,7 @@ logfile:
 pdb2pqr_path:
  Where the pdb2pqr program is installed.
 
-1.4 Example
+1.4 EXAMPLE
 
 The following code can be used to protonate and perform an opt calculation on
  1GFL.pdb
@@ -176,3 +176,19 @@ master_atoms.calc.set_job(time=72,nodes=4,memory=4000)
 master_atoms.calc.set_amber_params(p.mm_parameters.values())
 master_atoms.calc.start(frc=True)
 
+1.5 CHROMOPHORE DETECTION
+
+A method for finding a candidate for the chromophore has been included. It searches 
+ the entire protein for sp2 and aromatic atoms and groups them by their neighbouring
+ atoms. The largest groups are proposed as candidates.
+
+It can be used by calling 
+
+p.find_chromophore()
+
+before calling
+
+p.get_model_region()
+
+Multiple chromophores can be included in the calculation by supplying a list of indices
+ to the index parameter. 

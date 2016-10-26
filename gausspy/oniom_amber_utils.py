@@ -55,7 +55,9 @@ class Protein_Parameterisation(object):
                        #ONIOM Options
                        "Model Extraction Directory": "model/",
                        "Initial Model Atom Numbers": None,
-                       "Link Atom Map": {"C": "HC", "N": "H"},
+                       "Link Atom Map": {"C": "HC",
+                                         "N": "H",
+                                         "S": "H"},
                        #Parameterisation Options
                        "Parameterisation Directory": "parameters/",
                        "Parameterisation Databases": [{"name": "parm99", "type": "dat"}, 
@@ -64,7 +66,8 @@ class Protein_Parameterisation(object):
         self._hidden_params = {"Merged Connected NSR Resnum Groups": [],
                                "RED mol2 Filename": "Mol_m1-o1-sm.mol2",
                                "Final Model Atom Numbers": None,
-                               "Original Directory": os.getcwd()}
+                               "Original Directory": os.getcwd(),
+                               "Interface Nitrogens": []}
         
         self.mm_parameters = {}
         self.nsrs = {}
@@ -128,7 +131,7 @@ class Protein_Parameterisation(object):
                 if name is None:
                     name = atoms.get_chemical_formula()
                 rn = self._p._hidden_params["RED mol2 Filename"]
-                mod_rn = rn.replace(".mol2", "_" + nsr_name + ".mol2")        
+                mod_rn = nsr_name + "_partial_charges.mol2"
                 rds = ['./','Data-RED/','../','../Data-RED/']
                 rn_path = [rd + mod_rn for rd in rds if os.path.exists(rd + mod_rn)]
                 prot_out_path = [rd + name + "-out.p2n" for rd in rds if os.path.exists(rd + name + "-out.p2n")]
@@ -159,12 +162,15 @@ class Protein_Parameterisation(object):
                         #run_red takes ~1hr to run locally
                     os.system("sleep 1")
                     run_red("mod_" + name + "-out.p2n",nodes = 4)
+                    if not os.path.exists("Data-RED/" + rn):
+                        raise RuntimeError("Partial Charge calculation failed. Scratch directory must be empty")
                     os.system('cp Data-RED/{r} {m}'.format(r = rn, m = mod_rn))
                 else:
-                    os.system('cp {p} .'.format(p = rn_path[0]))
+                    os.system('cp {r} .'.format(r = rn_path[0]))
+                    os.system('cp {p} .'.format(p = prot_out_path[0]))
 
                 nsr_charges = read_mol2(mod_rn, atom_col_1 = 'pdb', atom_col_2 = 'amber')
-                nsr_amber = read_pdb(prot_out_path[0])
+                nsr_amber = read_pdb(name + "-out.p2n")
                 with open(prot_out_path[0], 'r') as p2n_f:
                     pdbs = [l.strip().split()[-1] for l in p2n_f.readlines() if l.startswith('ATOM')]
                 nsr_amber.calculate_ambers_pdbs()
@@ -222,16 +228,65 @@ class Protein_Parameterisation(object):
             self.set_link_ambers(atoms)
             return atoms
 
+        def detect_sp2_groups(self, atoms, index=0, return_mode="atoms"):
+            """Locates groups of sp2 hybridised atoms within a set of atoms and sorts them by group size, largest to smallest.
+            return_mode: 'atoms', 'tags', 'indices'"""
+            if isinstance(index, int):
+                index = [index]
+        
+            name = "chrom_detection"
+            atoms.write_pdb(name + '.pdb')
+            pybel_nsr = readfile('pdb', name + '.pdb').next()
+            hybridisation = [a.hyb for a in pybel_nsr]
+        
+            nns = []
+            for i, n in enumerate(copy.deepcopy(atoms.get_neighbours())):
+                ns = []
+                if atoms[i].symbol != 'H' and hybridisation[i] == 2:
+                    for a in n:
+                        if atoms[a].symbol != 'H' and hybridisation[a] == 2:
+                            ns.append(a)
+                    ns.append(i)
+                    nns.append(set(ns))
+            graph = []
+            while len(nns)>0:
+                n0, rns = nns[0], nns[1:]
+                nns = []
+                for rn in rns:
+                    if len(n0.intersection(rn)):
+                        n0 |= rn
+                    else:
+                        nns.append(rn)
+                n0 = list(n0)
+                if return_mode == "indices":
+                    graph.append([len(n0), n0])
+                elif return_mode == "tags":
+                    group = [t for i,t in enumerate(atoms.get_tags()) if i in n0]
+                    graph.append([len(group), group])
+                    
+            graph = sorted(graph, reverse=True)
+            graph = [g[1] for i,g in enumerate(graph) if i in index]
+                
+            if return_mode == "atoms":
+                graph = [a for b in graph for a in b]
+                return(atoms[graph])
+            return graph
+            
         def set_link_ambers(self, atoms):
             neighbours = atoms.get_neighbours()
             for i in range(len(atoms)):
                 if atoms[i].symbol == 'H' and atoms[i].amber == '':
                     neighbour_set = neighbours[i]
                     if len(neighbour_set) != 1: 
-                        raise Exception("Wrong number of neighbours")
+                        raise Exception("Atom {i} ({t}) has wrong number of neighbours".format(i = i, t = atoms[i].symbol))
                     neighbour = list(neighbour_set)[0]
                     neighbour_type = atoms[neighbour].symbol
-                    atoms[i].amber = self._p.params["Link Atom Map"][neighbour_type]
+                    amber = self._p.params["Link Atom Map"].get(neighbour_type)
+                    if amber is None:
+                        warnings.warn("Cannot assign link atom amber for atom {i} ({t}). This may lead to errors. Add amber assignment to Link Atom Map parameter")
+                        atoms[i].amber = 'H'
+                    else:
+                        atoms[i].amber = amber
 
         def merge_connected_nsr_indices(self, atoms = None):
             if atoms is None:
@@ -315,6 +370,53 @@ class Protein_Parameterisation(object):
                 combined = before_nsr + nsrs[i].take() + after_nsr
                 
             return combined
+            
+        def fix_interface_nitrogens(self, atoms):
+            
+            residues = self._p.params["NSR Names"]
+            
+            def get_nitrogen_type(atoms, i, neighbours_list, residue):
+                if atoms[i].residue == residue and any([atoms[n].residue != residue for n in neighbours_list[i]]):
+                    return 1 #Interface, NSR side
+                if any([atoms[n].residue == residue for n in neighbours_list[i]]) and atoms[i].residue != residue:
+                    return 2 #Interface, SR side
+                else:
+                    return 0 #Not on interface
+                
+            try:
+                old_neighbours = atoms._neighbours
+                atoms.calculate_neighbours()
+                new_neighbours = atoms._neighbours
+                interface_ns = []
+                for residue in residues:
+                    for i in range(len(atoms)):
+                        if atoms[i].pdb == 'N':
+                            n_type = get_nitrogen_type(atoms, i, new_neighbours, residue)
+                            if n_type != 0 and len(new_neighbours[i]) == 3:
+                                interface_ns.append([i] + new_neighbours[i])
+                                
+                for i_nns in interface_ns:
+                    n, rest = i_nns[0], i_nns[1:]
+                    for r in rest:
+                        if atoms[r].symbol == 'H':
+                            h = r
+                            rest.remove(h)
+                    if len(rest) != 2:
+                        warnings.warn("Nitrogen ({n}) in residue ({r}) has more than one hydrogen neighbour while being attached to multiple residues".format(n = n, r = atoms[n].residue))
+                    else:
+                        self._p._hidden_param["Interface Nitrogens"].append(n)
+                        c0, c1 = rest
+                        mask = [1 if i == h else 0 for i in range(len(atoms))]
+                        atoms.set_dihedral([c0, c1, n, h], np.pi, mask)
+                        atoms.set_angle([c0, n, h], np.pi, mask)
+                        atoms.set_angle([c1, n, h], 2 * np.pi / 3, mask)
+            except:
+                atoms._neighbours = copy.deepcopy(old_neighbours)
+                
+            atoms._neighbours = copy.deepcopy(old_neighbours)
+            for i_nns in interface_ns:
+                for i_nn in i_nns:
+                    atoms._neighbours[i_nn] = new_neighbours[i_nn]
 
         def get_database_parameters(self, database_name, database_type):
 
@@ -386,12 +488,18 @@ class Protein_Parameterisation(object):
         
             
             self.protonated_atoms.fix_hypervalent_hydrogens()
+            self.Utils.fix_interface_nitrogens(self.protonated_atoms)
             temp = self.protonated_atoms.take()
             temp.calculate_ambers_pdbs()
             for i, a in enumerate(self.protonated_atoms):
                 a.chain = '' if not chains[i] or isinstance(chains[i],int) or chains[i].isdigit() else chains[i]
                 if a.residue not in nns:
-                    a.amber = temp[i].amber
+                    if temp[i].amber == 'DU':
+                        warnings.warn("{s} ({i}) had amber type 'DU'. This can indicate an error in the structure and may negatively affect parameterisation.".format(s = a.symbol, i = i))                        
+                        a.amber = a.symbol
+                    else:
+                        a.amber = temp[i].amber
+                    
             
         finally:
             self.Utils._cd_out()
@@ -415,20 +523,33 @@ class Protein_Parameterisation(object):
             self.Utils._cd_in(self.params["Model Extraction Directory"])
         
             if atoms == None:
-                atoms = self.protonated_atoms.take()
+                atoms = self.protonated_atoms
 
             initial_model_indices = self.params["Initial Model Atom Numbers"]
+
+            if len(initial_model_indices) == 0:
+                raise RuntimeError("Initial Model Atom Number parameter is empty")
             mns = list(atoms.take(tags = initial_model_indices, indices_in_tags = True).get_tags())
 
             neighbour_list = atoms.expand_selection(mns, mode = 'bonds', expansion = 1, inclusive = False)
             h_list = [n for n in neighbour_list if atoms[n].symbol=='H']
-            mns_h = self._hidden_params["Final Model Atom Numbers"] = mns + h_list
-
-            self.model_region = self.Utils.get_oniom_model_from_indices(atoms, sorted(mns_h))
+            mns_h = mns + h_list
+            self._hidden_params["Final Model Atom Numbers"] = mns_h
+            for i in range(len(atoms)):
+                if i in mns_h:
+                    atoms[i].atom_type = 'HETATM'
+                else:
+                    atoms[i].atom_type = 'ATOM'
             
+            model_region = self.Utils.get_oniom_model_from_indices(atoms, sorted(mns_h))
+            
+            if len(model_region) == 0:
+                raise RuntimeError("Model region extraction job failed")
+            self.model_region = model_region
+                
         finally:
             self.Utils._cd_out()
-        
+    
     def add_atom_parameters(self, atoms, name):
         try:
             self.Utils._cd_in(self.params["Parameterisation Directory"])
@@ -491,3 +612,18 @@ class Protein_Parameterisation(object):
             
     def get_final_model_atomnos(self):
         return self._hidden_params["Final Model Atom Numbers"]
+
+    def find_chromophore(self, atoms=None, expand_selection=1, include_hydrogens=False, sp2_group_index=0):
+        if atoms is None:
+            atoms = self.initial_atoms
+        chrom = self.Utils.detect_sp2_groups(atoms, sp2_group_index, return_mode = "indices")
+        chrom = [a for b in chrom for a in b]
+        if expand_selection:
+            ns = atoms.expand_selection(chrom, mode = 'bonds', expansion = expand_selection, inclusive = False)
+            ns = [n for n in ns if atoms[n].symbol != 'H']
+            chrom += ns
+        if include_hydrogens:
+            ns = atoms.expand_selection(chrom, mode = 'bonds', expansion = 1, inclusive = False)
+            ns = [n for n in ns if atoms[n].symbol == 'H']
+            chrom += ns
+        self.params["Initial Model Atom Numbers"] = chrom
