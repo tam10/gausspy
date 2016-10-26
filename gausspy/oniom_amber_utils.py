@@ -171,7 +171,7 @@ class Protein_Parameterisation(object):
 
                 nsr_charges = read_mol2(mod_rn, atom_col_1 = 'pdb', atom_col_2 = 'amber')
                 nsr_amber = read_pdb(name + "-out.p2n")
-                with open(prot_out_path[0], 'r') as p2n_f:
+                with open(name + "-out.p2n", 'r') as p2n_f:
                     pdbs = [l.strip().split()[-1] for l in p2n_f.readlines() if l.startswith('ATOM')]
                 nsr_amber.calculate_ambers_pdbs()
                 nsr_amber.set_pdbs(pdbs)
