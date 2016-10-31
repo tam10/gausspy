@@ -12,7 +12,7 @@ from cc_utils.chem_utils import get_amber_params_from_dat, get_amber_params_from
 import os
 from gausspy import Gaussian
 import copy
-import warnings
+import logging
 import random
 import string
 import numpy as np
@@ -21,29 +21,14 @@ import numpy as np
 class Protein_Parameterisation(object):
     def __init__(self, atoms):
         
-        if not hasattr(atoms, "get_pdbs"):
-            raise RuntimeError("atoms must be an ASE Proteins Extension object")
-        
-        if os.environ.get('AMBERHOME') is None:
-            raise RuntimeError("AMBERHOME not set in os.environ")
-        
-        alpha_nums = string.ascii_letters+string.digits
-        invalid_pdbs = '; '.join([': '.join([str(a.index), a.pdb]) for a in atoms if any([s not in alpha_nums for s in a.pdb])])
-        if len(invalid_pdbs) > 0:
-            warnings.warn(RuntimeWarning('Invalid characters found in PDB Atom Types in atoms:\n' + invalid_pdbs + '\nThese atoms will cause errors on running Gaussian'))
-        
-        blank_pdbs = ', '.join([str(a.index) for a in atoms if a.pdb == ''])  
-        if len(blank_pdbs) > 0:
-            warnings.warn(RuntimeWarning('Blank PDB Atom Types Found in atoms:\n' + blank_pdbs))   
-            
         self.Utils = self._utils(self)
-        self.initial_atoms = atoms
         
         self.params = {"NSR Resnums": None,
                        "NSR Names": "CR",
                        #Protonation Options
                        "Protonation Directory": "protonation/",
                        "pH": None,
+                       "Cap Using Neighbours": True,
                        "Force Capping": True,
                        "Optimised Capping": True,
                        "NSR Protonation Function": self.Utils.pybel_protonate,
@@ -67,14 +52,42 @@ class Protein_Parameterisation(object):
                                "RED mol2 Filename": "Mol_m1-o1-sm.mol2",
                                "Final Model Atom Numbers": None,
                                "Original Directory": os.getcwd(),
-                               "Interface Nitrogens": []}
+                               "Interface Nitrogens": [],
+                               "Minimum Chromophore Size": 8}
         
+
+        
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(format = "%(asctime)s (%(levelname)s): %(message)s", 
+                            datefmt = "%d/%m/%Y %H:%M:%S", 
+                            level = "INFO",
+                            filename = "protein_parameterisation.log")
+        
+        if not hasattr(atoms, "get_pdbs"):
+            raise RuntimeError("atoms must be an ASE Proteins Extension object")
+        
+        if os.environ.get('AMBERHOME') is None:
+            raise RuntimeError("AMBERHOME not set in os.environ")
+        
+        alpha_nums = string.ascii_letters + string.digits
+        invalid_pdbs = '; '.join([': '.join([str(a.index), a.pdb]) for a in atoms if any([s not in alpha_nums for s in a.pdb])])
+        if len(invalid_pdbs) > 0:
+            logging.warning('Invalid characters found in PDB Atom Types in atoms:\n' + invalid_pdbs + '\nThese atoms will cause errors on running Gaussian')
+        
+        blank_pdbs = ', '.join([str(a.index) for a in atoms if a.pdb == ''])  
+        if len(blank_pdbs) > 0:
+            logging.warning('Blank PDB Atom Types Found in atoms:\n' + blank_pdbs)  
+            
+        self.initial_atoms = atoms
+
         self.mm_parameters = {}
         self.nsrs = {}
         self.protonated_nsrs = {}
         self.pc_nsrs = {}
         self.protonated_atoms = None
         self.model_region = None
+        
+        logging.info("Initialised")
         
     class _utils(object):
         def __init__(self, protein_parameterisation):
@@ -87,21 +100,71 @@ class Protein_Parameterisation(object):
             if '(omitted below):\n' in filestr and 'This is usually due to' in filestr:
                 nsr_detect_lines = filestr.split('(omitted below):\n')[1].split('This is usually due to')[0].split('\n')[:-1]
                 nsr_indices = list(set([int(ndl.split()[-1]) for ndl in nsr_detect_lines]))
+                logging.info("Found the following NSRs in {f}.pqr: {n}".format(n = nsr_indices, f = pqr_file))
                 return sorted(nsr_indices)
             if 'WARNING: Unable to debump' in filestr:
                 warn_res_lines = [l.strip() for l in filestr.split('\n') if 'WARNING: Unable to debump' in l]
                 warn_resnums = [[r.split()[-1],r.split()[-3]] for r in warn_res_lines]
                 warn_res_str = ", ".join(["{r} ({rn})".format(r = r, rn = rn) for r, rn in warn_resnums])
-                warn_str = "NSR detection failed for residues: {r}.\nRename these residues with non-standard names to fix.".format(r = warn_res_str)
-                warnings.warn(warn_str)
-            else:
-                return []
+                warn_str = "NSR detection failed for residues in {f}.pqr: {r}.\nRename these residues with non-standard names to fix.".format(r = warn_res_str, f = pqr_file)
+                logging.warning(warn_str)
+            logging.info("Did not find any NSRs in {f}.pqr".format(f = pqr_file))
+            return []
+
+        def merge_and_cap_using_neighbours(self, atoms, resnums, name):
+            res = atoms.take(resnums = resnums, indices_in_tags = True)
+            res_dict = res.get_residue_dict()
+            ir = [res_dict[r] for r in resnums]
+            res.merge_residues(resnums, name)
+            
+            logging.info("Merged residues {i} ({ir}) into {f} ({fr})".format(i  = resnums,
+                                                                             ir = ir,
+                                                                             f  = res[0].resnum,
+                                                                             fr = res[0].residue))
+            tags = res.get_tags()
+            
+            nas0 = atoms.expand_selection(tags, inclusive = False)
+            nas1 = atoms.expand_selection(nas0, inclusive = False)
+            
+            ris = [a for a in nas1 if a in tags]
+            nas1 = [a for a in nas1 if a not in tags]
+            
+            for ri in ris:
+                n0s = list({n0 for n0 in atoms.get_neighbours()[ri] if n0 in nas0})
+                assert(len(n0s) > 0)
+                if len(n0s) > 1:
+                    logging.warning("Atom {a} ({n}) in residue {r} has more than one neighbour outside its own residue".format(a = atoms[ri].pdb, n = ri, r=atoms[ri].residue))
+                n1s = [[n1 for n1 in atoms.get_neighbours()[n0] if n1 in nas1] for n0 in n0s]
+                n1s = list({a for b in n1s for a in b})
+                nas = n0s + n1s
+                
+                if atoms[ri].pdb == 'N':
+                    if all([p in ['C', 'CA', 'O'] for p in atoms[nas].get_pdbs()]) and len(nas) == 3:
+                        cap = atoms.take()[nas]
+                        res += cap
+                        logging.info("Adding ACE cap from {nr} to N ({an}) in {n}".format(nr = atoms[nas[0]].resnum, an = ri, n = name))
+                    else:
+                        res.cap_sites([i for i,t in enumerate(res.get_tags()) if i == ri])
+                elif atoms[ri].pdb == 'C':
+                    if all([p in ['CA', 'N'] for p in atoms[nas].get_pdbs()]) and len(nas) == 2:
+                        cap = atoms.take()[nas]
+                        res += cap
+                        logging.info("Adding NME cap from {nr} to C ({an}) in {n}".format(nr = atoms[nas[0]].resnum, an = ri, n = name))
+                    else:
+                        res.cap_sites([i for i,t in enumerate(res.get_tags()) if i == ri])
+                else:
+                    logging.warning("Unusual capping atoms are being used for atom {a} ({an}) in {n}.".format(a = atoms[ri].pdb, an = ri, n = name))
+                    
+                
+            res.calculate_neighbours()
+            return res
 
         def pybel_protonate(self, atoms):
             name = atoms.info.get("name")
             if name is None:
                 name = atoms.get_chemical_formula()
             atoms.write_pdb(name + ".pdb")
+            i_hn = len(atoms.take('H'))
             try:
                 prot_p = readfile('pdb', name + ".pdb").next()
             except StopIteration:
@@ -109,6 +172,8 @@ class Protein_Parameterisation(object):
             prot_p.addh()
             prot_p.write('pdb', name + "_pybel_protonated.pdb", overwrite = True)
             prot = read_pdb(name + "_pybel_protonated.pdb")
+            f_hn = len(prot.take('H'))
+            logging.info("Added {h} hydrogens to {n} with Pybel".format(h = f_hn - i_hn, n = name))
             prot.calculate_ambers_pdbs()
             return prot
             
@@ -117,12 +182,23 @@ class Protein_Parameterisation(object):
             atoms.write_pdb(filename + '.pdb')
 
             ph_str = '--ph-calc-method=propka --with-ph={p} '.format(p = self._p.params["pH"]) if self._p.params["pH"] is not None else ''
-            os.system('{d}pdb2pqr -v {s} {p}{i} {o}'.format(d = self._p.params["pdb2pqr Path"],
+            os.system('{d}pdb2pqr -v {s} {p}{f}.pdb {f}.pqr > {f}.log'.format(d = self._p.params["pdb2pqr Path"],
                                                             s = " ".join(self._p.params["pdb2pqr Options"]), 
                                                             p = ph_str,
-                                                            i = filename + '.pdb', 
-                                                            o = filename +'.pqr'))
-            return read_pqr(filename + '.pqr')
+                                                            f = filename))
+            
+            with open(filename + '.pqr', 'r') as fileobj:
+                filestr = fileobj.read()
+            if 'WARNING: Unable to debump' in filestr:
+                warn_res_lines = [l.strip() for l in filestr.split('\n') if 'WARNING: Unable to debump' in l]
+                warn_resnums = [[r.split()[-1],r.split()[-3]] for r in warn_res_lines]
+                warn_res_str = ", ".join(["{r} ({rn})".format(r = r, rn = rn) for r, rn in warn_resnums])
+                warn_str = "pdb2pqr encountered errors in residues: {r}.\n This can lead to errors later on.".format(r = warn_res_str)
+                logging.warning(warn_str)
+            logging.info("Protonated {f} with pdb2pqr. See {f}.log for info".format(f = filename))
+            prot_atoms = read_pqr(filename + '.pqr')
+            
+            return prot_atoms
         
         def calculate_partial_charges(self, atoms, nsr_name):
             try:
@@ -132,28 +208,27 @@ class Protein_Parameterisation(object):
                     name = atoms.get_chemical_formula()
                 rn = self._p._hidden_params["RED mol2 Filename"]
                 mod_rn = nsr_name + "_partial_charges.mol2"
-                rds = ['./','Data-RED/','../','../Data-RED/']
+                rds = ['./',nsr_name + '_Data-RED/','../','../' + nsr_name + '_Data-RED/']
                 rn_path = [rd + mod_rn for rd in rds if os.path.exists(rd + mod_rn)]
                 prot_out_path = [rd + name + "-out.p2n" for rd in rds if os.path.exists(rd + name + "-out.p2n")]
 
                 if self._p.params["Overwrite RESP Calculation"] or len(rn_path) == 0 or len(prot_out_path) == 0:
                     atoms.write_pdb(name + ".pdb")
-                    os.system("Ante_RED-1.5.pl {n}".format(n = name + ".pdb"))
+                    os.system("Ante_RED-1.5.pl {n} > {l}".format(n = name + ".pdb", l = name + ".log"))
                     p2n_atoms = read_pdb(name + "-out.p2n")
 
-                    ace_capping_atoms = [str(n+1) for n, a in enumerate(p2n_atoms) if a.residue == 'ACE']
-                    nme_capping_atoms = [str(n+1) for n, a in enumerate(p2n_atoms) if a.residue == 'NME']
+                    capping_atoms = [str(n+1) for n, a in enumerate(p2n_atoms) if a.residue != nsr_name]
 
-                    #Exclude ACE and NME from partial charge calculation
-                    if ace_capping_atoms: ace_remark = 'REMARK INTRA-MCC 0.0 |  ' + '  '.join(ace_capping_atoms) + ' | Remove\n'
-                    if nme_capping_atoms: nme_remark = 'REMARK INTRA-MCC 0.0 |  ' + '  '.join(nme_capping_atoms) + ' | Remove\n'
+                    #Exclude capping atoms from partial charge calculation
+                    if capping_atoms: 
+                        cap_remark = 'REMARK INTRA-MCC 0.0 |  ' + '  '.join(capping_atoms) + ' | Remove\n'
 
                     with open(name + "-out.p2n", "r") as p2n_f:
                         p2n_content = p2n_f.read()
                     split_contents = p2n_content.split('REMARK\n')
 
-                    if ace_capping_atoms: split_contents[-2] += ace_remark
-                    if nme_capping_atoms: split_contents[-2] += nme_remark
+                    if capping_atoms: 
+                        split_contents[-2] += cap_remark
                     p2n_content = 'REMARK\n'.join(split_contents)
 
                     with open("mod_" + name + "-out.p2n", 'w') as p2n_f:
@@ -161,11 +236,25 @@ class Protein_Parameterisation(object):
 
                         #run_red takes ~1hr to run locally
                     os.system("sleep 1")
+                    if self._p.params["Overwrite RESP Calculation"]:
+                        logging.info("Overwriting RESP calculation for {n}...".format(n = nsr_name))
+                    else:
+                        logging.info("Running RESP calculation for {n}...".format(n = nsr_name))
                     run_red("mod_" + name + "-out.p2n",nodes = 4)
                     if not os.path.exists("Data-RED/" + rn):
-                        raise RuntimeError("Partial Charge calculation failed. Scratch directory must be empty")
+                        raise RuntimeError("Partial Charge calculation failed for {n}. Scratch directory must be empty".format(n = nsr_name))
+                    logging.info("RESP calculation complete")
+                    gauss_logs = ['Data-RED/' + f for f in os.listdir('Data-RED/') if f.startswith('JOB') and f.endswith('.log')]
+                    for g_log in gauss_logs:
+                        with open(g_log, 'r') as g_log_obj:
+                            g_log_str = g_log_obj.read()
+                        if "Normal termination" not in g_log_str:
+                            logging.warning("Failed job in Data-RED directory. This might mean charges are from a previous calculation")
+                            
                     os.system('cp Data-RED/{r} {m}'.format(r = rn, m = mod_rn))
+                    os.rename('Data-RED', nsr_name + '_Data-RED')
                 else:
+                    logging.info("RESP calculation already performed for {n}...".format(n = nsr_name))
                     os.system('cp {r} .'.format(r = rn_path[0]))
                     os.system('cp {p} .'.format(p = prot_out_path[0]))
 
@@ -176,12 +265,12 @@ class Protein_Parameterisation(object):
                 nsr_amber.calculate_ambers_pdbs()
                 nsr_amber.set_pdbs(pdbs)
                 
-                nsr_amber.take(residues = nsr_name)
+                nsr_amber = nsr_amber.take(residues = nsr_name)
                 for a in nsr_amber:
                     for b in nsr_charges:
                         if a.pdb == b.pdb:
                             a.amber_charge = b.amber_charge
-                            
+                
                 return nsr_amber
             finally:
                 self._cd_out()
@@ -259,12 +348,16 @@ class Protein_Parameterisation(object):
                         nns.append(rn)
                 n0 = list(n0)
                 if return_mode == "indices":
-                    graph.append([len(n0), n0])
+                    if len(n0) > 6:
+                        graph.append([len(n0), n0])
                 elif return_mode == "tags":
                     group = [t for i,t in enumerate(atoms.get_tags()) if i in n0]
-                    graph.append([len(group), group])
+                    if len(group) >= self._p._hidden_params["Minimum Chromophore Size"]:
+                        graph.append([len(group), group])
                     
             graph = sorted(graph, reverse=True)
+            logging.info("{n} chromophore candidates found of sizes: {s}".format(n = len(graph),
+                                                                                 s = [len(g[1]) for g in graph]))
             graph = [g[1] for i,g in enumerate(graph) if i in index]
                 
             if return_mode == "atoms":
@@ -283,7 +376,7 @@ class Protein_Parameterisation(object):
                     neighbour_type = atoms[neighbour].symbol
                     amber = self._p.params["Link Atom Map"].get(neighbour_type)
                     if amber is None:
-                        warnings.warn("Cannot assign link atom amber for atom {i} ({t}). This may lead to errors. Add amber assignment to Link Atom Map parameter")
+                        logging.warning("Cannot assign link atom amber for atom {i} ({t}). This may lead to errors. Add amber assignment to Link Atom Map parameter")
                         atoms[i].amber = 'H'
                     else:
                         atoms[i].amber = amber
@@ -402,7 +495,7 @@ class Protein_Parameterisation(object):
                             h = r
                             rest.remove(h)
                     if len(rest) != 2:
-                        warnings.warn("Nitrogen ({n}) in residue ({r}) has more than one hydrogen neighbour while being attached to multiple residues".format(n = n, r = atoms[n].residue))
+                        logging.warning("Nitrogen ({n}) in residue ({r}) has more than one hydrogen neighbour while being attached to multiple residues".format(n = n, r = atoms[n].residue))
                     else:
                         self._p._hidden_param["Interface Nitrogens"].append(n)
                         c0, c1 = rest
@@ -410,6 +503,7 @@ class Protein_Parameterisation(object):
                         atoms.set_dihedral([c0, c1, n, h], np.pi, mask)
                         atoms.set_angle([c0, n, h], np.pi, mask)
                         atoms.set_angle([c1, n, h], 2 * np.pi / 3, mask)
+                        logging.info("Fixed interface nitrogen ({n}) in residue ({r})".format(n = n, r = atoms[n].residue))
             except:
                 atoms._neighbours = copy.deepcopy(old_neighbours)
                 
@@ -430,6 +524,7 @@ class Protein_Parameterisation(object):
         def _cd_in(self, directory):
             self._p._hidden_params["Original Directory"] = os.getcwd()
             if not os.path.exists(directory):
+                logging.info("Created the following directory: {d}".format(d = directory))
                 os.mkdir(directory)
             os.chdir(directory)
         
@@ -446,6 +541,8 @@ class Protein_Parameterisation(object):
             self.prot_sr = self.Utils.pdb2pqr_protonate(self.initial_atoms, 'nsr_detection')
             self.params["NSR Resnums"] = self.Utils.detect_nsrs('nsr_detection')
             mc_nsrs = self._hidden_params["Merged Connected NSR Resnum Groups"] = self.Utils.merge_connected_nsr_indices()
+            
+            logging.info("Grouped NSRs {i} into {f} by connectivity".format(i = self.params["NSR Resnums"], f = mc_nsrs))
             
             if isinstance(nns, str):
                 if len(nns) == 3 and len(mc_nsrs) == 1:
@@ -464,15 +561,25 @@ class Protein_Parameterisation(object):
                 raise RuntimeError("Length of NSR Names ({n}) must equal number of merged residues ({m})".format(n = len(nns), m = len(mc_nsrs)))
             
             self.params["NSR Names"] = nns
+            logging.info("Using the following NSR names: {n}".format(n = nns))
             
             for i, nsr_group in enumerate(mc_nsrs):
                 nsr_name = nns[i]
-                nsr = self.nsrs[nsr_name] = self.initial_atoms.take(resnums = nsr_group)
-                
-                nsr.info["name"] = nsr_name
-                nsr.calculate_neighbours()
-                nsr.merge_residues(nsr_group, nns[i])
-                nsr.cap_sites(force = self.params["Force Capping"], optimise = self.params["Optimised Capping"])
+
+                if self.params["Cap Using Neighbours"]:
+                    logging.info("Capping using neighbouring residue atoms")
+                    nsr = self.nsrs[nsr_name] = self.Utils.merge_and_cap_using_neighbours(self.initial_atoms, nsr_group, nsr_name)
+                    
+                    nsr.info["name"] = nsr_name
+
+                else:
+                    logging.info("Capping using database capping groups")
+                    nsr = self.nsrs[nsr_name] = self.initial_atoms.take(resnums = nsr_group)
+                    
+                    nsr.info["name"] = nsr_name
+                    nsr.calculate_neighbours()
+                    nsr.merge_residues(nsr_group, nns[i])
+                    nsr.cap_sites(force = self.params["Force Capping"], optimise = self.params["Optimised Capping"])
                 
                 prot_nsr = self.protonated_nsrs[nsr_name] = self.params["NSR Protonation Function"](nsr)
                 prot_nsr.info["name"] = nsr_name + "_prot"
@@ -480,12 +587,13 @@ class Protein_Parameterisation(object):
                 
             self.protonated_atoms = self.Utils.combine_nsrs_srs(self.initial_atoms, self.prot_sr, prot_nsrs, self._hidden_params["Merged Connected NSR Resnum Groups"], nns)
                     
+            logging.info("Merged standard and non-standard residues")
+            
             self.protonated_atoms.info["name"] = "master"
             self.protonated_atoms.reorder_residues()
             self.protonated_atoms.renumber_residues()
             
             chains = self.protonated_atoms.get_chains()
-        
             
             self.protonated_atoms.fix_hypervalent_hydrogens()
             self.Utils.fix_interface_nitrogens(self.protonated_atoms)
@@ -495,11 +603,12 @@ class Protein_Parameterisation(object):
                 a.chain = '' if not chains[i] or isinstance(chains[i],int) or chains[i].isdigit() else chains[i]
                 if a.residue not in nns:
                     if temp[i].amber == 'DU':
-                        warnings.warn("{s} ({i}) had amber type 'DU'. This can indicate an error in the structure and may negatively affect parameterisation.".format(s = a.symbol, i = i))                        
+                        logging.warning("{s} ({i}) had amber type 'DU'. This can indicate an error in the structure and may negatively affect parameterisation.".format(s = a.symbol, i = i))                        
                         a.amber = a.symbol
                     else:
                         a.amber = temp[i].amber
                     
+            logging.info("Protonation Complete")
             
         finally:
             self.Utils._cd_out()
@@ -509,6 +618,7 @@ class Protein_Parameterisation(object):
             prot_nsr = self.protonated_nsrs[nsr_name]
             self.pc_nsrs[nsr_name] = self.Utils.calculate_partial_charges(prot_nsr, nsr_name)
             
+            
         
         for a in self.protonated_atoms:
             for nsr_name in self.params["NSR Names"]:
@@ -516,6 +626,8 @@ class Protein_Parameterisation(object):
                     for b in self.pc_nsrs[nsr_name]:
                         if a == b:
                             a.amber_charge = b.amber_charge
+                            if b.amber_charge == 0:
+                                logging.warning("Partial charge of 0 added to atom {s} ({i}) in {n}".format(s = a.symbol, i = a.index, n = nsr_name))
                             
     def get_model_region(self, atoms = None):
         
@@ -546,6 +658,7 @@ class Protein_Parameterisation(object):
             if len(model_region) == 0:
                 raise RuntimeError("Model region extraction job failed")
             self.model_region = model_region
+            logging.info("Model region with {n} atoms extracted using Final Atom Model Numbers".format(n = len(model_region)))
                 
         finally:
             self.Utils._cd_out()
@@ -565,7 +678,7 @@ class Protein_Parameterisation(object):
 
 
             atoms.write_mol2('{name}.mol2'.format(name = name), atom_col_1 = 'pdb', atom_col_2 = 'amber')
-            os.system('parmchk2 -a Y -f mol2 -i {name}.mol2 -o {name}.frcmod'.format(name = name))
+            os.system('parmchk2 -a Y -f mol2 -i {name}.mol2 -o {name}.frcmod > {name}.log'.format(name = name))
             params = self.Utils.get_database_parameters(os.getcwd() + os.sep + '{name}.frcmod'.format(name = name), 'frcmod')
 
             warn_str = ''    
@@ -587,7 +700,7 @@ class Protein_Parameterisation(object):
                                                                                              i['t4'] if i.get('t4') else '')
 
             if len(warn_str) > 0:                                                            
-                warnings.warn('\nErrors found in %s:\n' % (name) + warn_str)
+                logging.warning('\nErrors found in %s:\n' % (name) + warn_str)
 
             self.mm_parameters[name] = params
 
@@ -599,6 +712,7 @@ class Protein_Parameterisation(object):
             self.Utils._cd_in(self.params["Parameterisation Directory"])
             for db in self.params["Parameterisation Databases"]:
                 self.mm_parameters[db["name"]] = self.Utils.get_database_parameters(db["name"], db["type"])
+                logging.info("Added parameters for {n}".format(n = db["name"]))
             
         finally:
             self.Utils._cd_out()
@@ -607,8 +721,10 @@ class Protein_Parameterisation(object):
         self.add_database_parameters()
         for name, pc_nsr in self.pc_nsrs.iteritems():
             self.add_atom_parameters(pc_nsr, name)
+            logging.info("Added parameters for {n}".format(n = name))
         if self.model_region is not None:
             self.add_atom_parameters(self.model_region, "model_region")
+            logging.info("Added parameters for {n}".format(n = "model_region"))
             
     def get_final_model_atomnos(self):
         return self._hidden_params["Final Model Atom Numbers"]
@@ -616,6 +732,25 @@ class Protein_Parameterisation(object):
     def find_chromophore(self, atoms=None, expand_selection=1, include_hydrogens=False, sp2_group_index=0):
         if atoms is None:
             atoms = self.initial_atoms
+        
+        c_str = "Chromophore search within {n} atoms. ".format(n = len(atoms))
+            
+        if expand_selection > 1:
+            e_str = "Including {e} neighbours from each terminus. ".format(e = expand_selection)
+        elif expand_selection == 1:
+            e_str = "Including 1 neighbour from each terminus. "
+        else:
+            e_str = "Not including neighbouring heavy atoms. "
+            
+        if include_hydrogens:
+            h_str = "Including hydrogens in output. "
+        else:
+            h_str = "Not including hydrogens in output. "
+            
+        s_str = "Using sp2 group index {s}. ".format(s = sp2_group_index)
+            
+            
+        logging.info(c_str + e_str + h_str + s_str)
         chrom = self.Utils.detect_sp2_groups(atoms, sp2_group_index, return_mode = "indices")
         chrom = [a for b in chrom for a in b]
         if expand_selection:
