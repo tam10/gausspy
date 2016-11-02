@@ -1935,7 +1935,7 @@ class Gaussian(Calculator):
         
         mol_charge = int(round(sum(atoms.get_amber_charges()),0))
         electrons_neutral = sum(atoms.get_atomic_numbers())
-
+        
         if self.multiplicity:
             layer_multiplicity = self.multiplicity
         else:
@@ -1967,6 +1967,6 @@ class Gaussian(Calculator):
         
         if 'connectivity' in self.route_self_params['geom'].lower():
             connectivity_string=self._get_connectivity(atoms) + "\n"
-    
+        
         return " ".join(layer_charge_strs) + "\n" + "".join(layer_coord_strs) + "\n\n" + connectivity_string + self._get_comp_chks() + "\n" + self._params_str +"\n\n"
         

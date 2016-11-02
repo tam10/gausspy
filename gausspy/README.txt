@@ -192,3 +192,29 @@ p.get_model_region()
 
 Multiple chromophores can be included in the calculation by supplying a list of indices
  to the index parameter. 
+
+1.6 MODIFYING CHROMOPHORE CHARGE
+
+Chromophore charges can be determined as followed:
+
+sum(p.model_region.get_amber_charges())
+
+Under normal conditions this is set to 0. There are two ways of changing this:
+
+1: Modify the protonation function. This can even be a dummy function that returns a 
+   previously constucted chromophore. The requirement is that it must be a Protein 
+   Atoms Object with amber and pdb types calculated.
+
+2: Modify the protonated_nsr that contains the chromophore. Run 
+   p.auto_protonate() to extract the protonated NSR first. Then perform
+   necessary modifiations to p.protonated_nsrs and p.protonated atoms. 
+   For example:
+
+del p.protonated_nsrs["CRA"][36]
+del p.protonated_atoms[988]
+
+   deletes atom 36 inside NSR 'CRA' (here this is an alcoholic proton)
+
+p._hidden_params["NSR Charges Multiplicities"]["CRA"] = [-1, 1]
+
+   sets the total charge to -1 in the RESP calculation.

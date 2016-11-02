@@ -53,7 +53,8 @@ class Protein_Parameterisation(object):
                                "Final Model Atom Numbers": None,
                                "Original Directory": os.getcwd(),
                                "Interface Nitrogens": [],
-                               "Minimum Chromophore Size": 8}
+                               "Minimum Chromophore Size": 8,
+                               "NSR Charges Multiplicities": None}
         
 
         
@@ -224,12 +225,18 @@ class Protein_Parameterisation(object):
                         cap_remark = 'REMARK INTRA-MCC 0.0 |  ' + '  '.join(capping_atoms) + ' | Remove\n'
 
                     with open(name + "-out.p2n", "r") as p2n_f:
-                        p2n_content = p2n_f.read()
-                    split_contents = p2n_content.split('REMARK\n')
+                        split_contents = p2n_f.readlines()
 
-                    if capping_atoms: 
-                        split_contents[-2] += cap_remark
-                    p2n_content = 'REMARK\n'.join(split_contents)
+                    
+                    for i, split_content in enumerate(split_contents):
+                        if 'CHARGE-VALUE' in split_content:
+                            split_contents[i] = "REMARK CHARGE-VALUE {c}\n".format(c = self._p._hidden_params["NSR Charges Multiplicities"][nsr_name][0])
+                        elif 'MULTIPLICITY-VALUE' in split_content:
+                            split_contents[i] = "REMARK MULTIPLICITY-VALUE {m}\n".format(m = self._p._hidden_params["NSR Charges Multiplicities"][nsr_name][1])
+                            if capping_atoms:
+                                split_contents[i] += cap_remark
+                                
+                    p2n_content = ''.join(split_contents)
 
                     with open("mod_" + name + "-out.p2n", 'w') as p2n_f:
                         p2n_f.write(p2n_content)
@@ -258,20 +265,28 @@ class Protein_Parameterisation(object):
                     os.system('cp {r} .'.format(r = rn_path[0]))
                     os.system('cp {p} .'.format(p = prot_out_path[0]))
 
-                nsr_charges = read_mol2(mod_rn, atom_col_1 = 'pdb', atom_col_2 = 'amber')
-                nsr_amber = read_pdb(name + "-out.p2n")
-                with open(name + "-out.p2n", 'r') as p2n_f:
-                    pdbs = [l.strip().split()[-1] for l in p2n_f.readlines() if l.startswith('ATOM')]
-                nsr_amber.calculate_ambers_pdbs()
-                nsr_amber.set_pdbs(pdbs)
+                red_charges = read_mol2(mod_rn, atom_col_1 = 'pdb', atom_col_2 = 'amber')
+                nsr_charges = atoms.take(indices_in_tags = True)
                 
-                nsr_amber = nsr_amber.take(residues = nsr_name)
-                for a in nsr_amber:
-                    for b in nsr_charges:
-                        if a.pdb == b.pdb:
+                for i, a in enumerate(nsr_charges):
+                    for b in red_charges:
+                        if a.pdb == b.pdb and a.residue == nsr_name:
                             a.amber_charge = b.amber_charge
+                        if a.amber == 'DU':
+                            logging.warning("{s} ({t}) had amber type 'DU'. This can indicate an error in the structure and may negatively affect parameterisation.".format(s = a.symbol, t = a.tag))                        
+                            if a.pdb == 'N':
+                                a.amber = atoms[i].amber = 'N'
+                            elif a.pdb == 'CA':
+                                a.amber = atoms[i].amber = 'CT'
+                            elif a.pdb[0] == 'C':
+                                a.amber = atoms[i].amber = 'CA'
+                            elif a.pdb[0] == 'H':
+                                a.amber = atoms[i].amber = 'H'
+                            else:
+                                a.amber = atoms[i].amber = a.symbol
+                            
                 
-                return nsr_amber
+                return nsr_charges
             finally:
                 self._cd_out()
                 
@@ -347,8 +362,8 @@ class Protein_Parameterisation(object):
                     else:
                         nns.append(rn)
                 n0 = list(n0)
-                if return_mode == "indices":
-                    if len(n0) > 6:
+                if return_mode in ["indices", "atoms"]:
+                    if len(n0) >= self._p._hidden_params["Minimum Chromophore Size"]:
                         graph.append([len(n0), n0])
                 elif return_mode == "tags":
                     group = [t for i,t in enumerate(atoms.get_tags()) if i in n0]
@@ -356,8 +371,9 @@ class Protein_Parameterisation(object):
                         graph.append([len(group), group])
                     
             graph = sorted(graph, reverse=True)
-            logging.info("{n} chromophore candidates found of sizes: {s}".format(n = len(graph),
-                                                                                 s = [len(g[1]) for g in graph]))
+            logging.info("{n} chromophore candidate{p} found of size{p}: {s}".format(n = len(graph),
+                                                                                 s = [len(g[1]) for g in graph],
+                                                                                     p = '' if len(graph) == 1 else 's'))
             graph = [g[1] for i,g in enumerate(graph) if i in index]
                 
             if return_mode == "atoms":
@@ -562,6 +578,9 @@ class Protein_Parameterisation(object):
             
             self.params["NSR Names"] = nns
             logging.info("Using the following NSR names: {n}".format(n = nns))
+            
+            if self._hidden_params["NSR Charges Multiplicities"] is None:
+                self._hidden_params["NSR Charges Multiplicities"] = {nns[i]: [0,1] for i in range(len(nns))}
             
             for i, nsr_group in enumerate(mc_nsrs):
                 nsr_name = nns[i]
