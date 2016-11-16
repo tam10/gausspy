@@ -790,7 +790,7 @@ class Protein_Parameterisation(object):
         if params:
             param_atoms.calc.set_amber_params(params)
         param_atoms.calc.start(frc = True)
-        para
+        
         
         with open("missing_params.log", "r") as mp_obj:
             mp_lines = mp_obj.readlines()
