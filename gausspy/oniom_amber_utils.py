@@ -781,3 +781,60 @@ class Protein_Parameterisation(object):
             ns = [n for n in ns if atoms[n].symbol == 'H']
             chrom += ns
         self.params["Initial Model Atom Numbers"] = chrom
+
+    def get_missing_param_sites(self, atoms, params = None):
+        
+        param_atoms = atoms.take(indices_in_tags = True)
+        
+        param_atoms.set_calculator(Gaussian(label = "missing_params", basis = "", method = "amber=softfirst", geom="connectivity"))
+        if params:
+            param_atoms.calc.set_amber_params(params)
+        param_atoms.calc.start(frc = True)
+        para
+        
+        with open("missing_params.log", "r") as mp_obj:
+            mp_lines = mp_obj.readlines()
+            
+        allAtoms = set()
+        types = []
+        bondLengths  = []
+        bondAngles  = []
+        resnums = set()
+        
+        for i, mp_line in enumerate(mp_lines):
+            if "Missing atomic parameters for" in mp_line:
+                try:
+                    a0 = int(mp_line.split()[-3]) - 1
+                    
+                    types.append(a0)
+                    allAtoms |= {a0}
+                    resnums  |= {atoms[a0].resnum}
+                except(ValueError):
+                    print("Could not resolve: " + mp_line)
+            elif "Include all MM classes" in mp_line:
+                mp_lines = mp_lines[i:]
+                break
+                
+        for mp_line in mp_lines:
+            try:
+                if "Bondstretch undefined" in mp_line:
+                    a0 = int(mp_line.split()[-3]) - 1
+                    a1 = int(mp_line.split()[-2]) - 1
+                    
+                    bondLengths += [[a0, a1]]
+                    allAtoms |= {a0, a1}
+                    resnums  |= {atoms[a0].resnum, atoms[a1].resnum}
+                    
+                elif "Angle bend  undefined" in mp_line:
+                    a0 = int(mp_line.split()[-4]) - 1
+                    a1 = int(mp_line.split()[-3]) - 1
+                    a2 = int(mp_line.split()[-2]) - 1
+                    
+                    bondAngles.append([a0, a1, a2])
+                    allAtoms |= {a0, a1, a2}
+                    resnums  |= {atoms[a0].resnum, atoms[a1].resnum, atoms[a2].resnum}
+                    
+            except(ValueError):
+                print("Could not resolve: " + mp_line)
+                
+        return {"types": types, "bondLengths": bondLengths, "bondAngles": bondAngles, "resnums": list(resnums), "allAtoms": list(allAtoms)}

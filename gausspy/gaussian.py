@@ -1140,6 +1140,7 @@ class Gaussian(Calculator):
 #        return
 
     #reduced to reading through the file 3 times
+#TODO convert to ase or proteins atom type
     def read(self, atoms=None):
         quantities = self.read_multi_output(self.log, quantities=['atoms', 'energy', 'forces', 'dipole'])
 
@@ -1802,9 +1803,12 @@ class Gaussian(Calculator):
         return self.amber_params
         
     def write_params_string(self, atoms):
-        new_types=[p for p in self.amber_params['types'] if p.get('element') in atoms.get_ambers()]
-        self.amber_params['types']=new_types
-        self._params_str=write_gauss_amber_params(self.amber_params)
+        if self.amber_params:
+            new_types=[p for p in self.amber_params['types'] if p.get('element') in atoms.get_ambers()]
+            self.amber_params['types']=new_types
+            self._params_str=write_gauss_amber_params(self.amber_params)
+        else:
+            self._params_str=""
         
     def _get_connectivity(self, atoms):
         neighbours=atoms.get_neighbours()
@@ -1967,6 +1971,8 @@ class Gaussian(Calculator):
         
         if 'connectivity' in self.route_self_params['geom'].lower():
             connectivity_string=self._get_connectivity(atoms) + "\n"
+        else:
+            connectivity_string=""
         
         return " ".join(layer_charge_strs) + "\n" + "".join(layer_coord_strs) + "\n\n" + connectivity_string + self._get_comp_chks() + "\n" + self._params_str +"\n\n"
         
