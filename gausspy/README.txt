@@ -138,7 +138,7 @@ from gausspy.oniom_amber_utils import *
 from gausspy import Gaussian
 
 protein=read_pdb('1GFL.pdb')
-chain_a=protein.take(chains='A',indices_in_tags=True).remove(residues='HOH')
+chain_a=protein.take(chains='A').remove(residues='HOH').take(indices_in_tags=True)
 
 #NSR is in residues 65-67
 #In 1GFL.pdb they are given standard residue names which will break pdb2pqr,

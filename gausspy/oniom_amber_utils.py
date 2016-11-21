@@ -303,7 +303,7 @@ class Protein_Parameterisation(object):
             oniom_extraction.set_calculator(Gaussian(label = 'model_extraction', basis = "oniom", method = "oniom(HF:UFF)=OnlyInputFiles"))
             oniom_extraction.calc.oniom_coord_params['layers'] = [indices]
             oniom_extraction.calc.oniom_coord_params['layer_mults'] = [1, 1]
-            oniom_extraction.calc.set_job(time=72 ,nodes=16, memory=48000)
+            oniom_extraction.calc.set_job(time=1 ,nodes=1, memory=4000)
             oniom_extraction.calc.start(frc = True)
 
             atoms = oniom_extraction[oniom_list].take(indices_in_tags = True)
