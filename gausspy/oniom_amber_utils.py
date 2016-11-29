@@ -32,7 +32,7 @@ class Protein_Parameterisation(object):
                        "Force Capping": True,
                        "Optimised Capping": True,
                        "NSR Protonation Function": self.Utils.pybel_protonate,
-                       "pdb2pqr Path": "/Users/tam10/Utilities/pdb2pqr-osx-bin64-2.1.0/",
+                       "pdb2pqr Command": "/Users/tam10/Utilities/pdb2pqr-osx-bin64-2.1.0/pdb2pqr",
                        "pdb2pqr Options": ["--ff=amber", "--ffout=amber"],
                        #RESP Options
                        "RESP Calculation Directory": "charges/",
@@ -50,6 +50,7 @@ class Protein_Parameterisation(object):
                       }
         self._hidden_params = {"Merged Connected NSR Resnum Groups": [],
                                "RED mol2 Filename": "Mol_m1-o1-sm.mol2",
+                               "Secondary RED mol2 Filename": "Mol_m1-o1.mol2",
                                "Final Model Atom Numbers": None,
                                "Original Directory": os.getcwd(),
                                "Interface Nitrogens": [],
@@ -183,7 +184,7 @@ class Protein_Parameterisation(object):
             atoms.write_pdb(filename + '.pdb')
 
             ph_str = '--ph-calc-method=propka --with-ph={p} '.format(p = self._p.params["pH"]) if self._p.params["pH"] is not None else ''
-            os.system('{d}pdb2pqr -v {s} {p}{f}.pdb {f}.pqr > {f}.log'.format(d = self._p.params["pdb2pqr Path"],
+            os.system('{d} -v {s} {p}{f}.pdb {f}.pqr > {f}.log'.format(d = self._p.params["pdb2pqr Command"],
                                                             s = " ".join(self._p.params["pdb2pqr Options"]), 
                                                             p = ph_str,
                                                             f = filename))
@@ -208,50 +209,62 @@ class Protein_Parameterisation(object):
                 if name is None:
                     name = atoms.get_chemical_formula()
                 rn = self._p._hidden_params["RED mol2 Filename"]
+                rn2 = self._p._hidden_params["Secondary RED mol2 Filename"]
                 mod_rn = nsr_name + "_partial_charges.mol2"
                 rds = ['./',nsr_name + '_Data-RED/','../','../' + nsr_name + '_Data-RED/']
                 rn_path = [rd + mod_rn for rd in rds if os.path.exists(rd + mod_rn)]
                 prot_out_path = [rd + name + "-out.p2n" for rd in rds if os.path.exists(rd + name + "-out.p2n")]
 
                 if self._p.params["Overwrite RESP Calculation"] or len(rn_path) == 0 or len(prot_out_path) == 0:
-                    atoms.write_pdb(name + ".pdb")
-                    os.system("Ante_RED-1.5.pl {n} > {l}".format(n = name + ".pdb", l = name + ".log"))
-                    p2n_atoms = read_pdb(name + "-out.p2n")
-
-                    capping_atoms = [str(n+1) for n, a in enumerate(p2n_atoms) if a.residue != nsr_name]
-
-                    #Exclude capping atoms from partial charge calculation
-                    if capping_atoms: 
-                        cap_remark = 'REMARK INTRA-MCC 0.0 |  ' + '  '.join(capping_atoms) + ' | Remove\n'
-
-                    with open(name + "-out.p2n", "r") as p2n_f:
-                        split_contents = p2n_f.readlines()
-
+                    p2n_atoms = atoms.take()
+                    symbols = []
+                    capping_atoms = []
+                    for i, a in enumerate(p2n_atoms):
+                        if a.amber == 'CT':
+                            symbol = 'CT'
+                        else:
+                            symbol = a.symbol
+                        symbols.append(symbol)
+                        a.amber = symbol + str(symbols.count(symbol))
+                        
+                        if a.residue != nsr_name:
+                            capping_atoms.append(i + 1)
+                        
+                    s =  "REMARK\n"
+                    s += "REMARK TITLE {n}\n".format(n = name)
+                    s += "REMARK CHARGE-VALUE {c}\n".format(c = self._p._hidden_params["NSR Charges Multiplicities"][nsr_name][0])
+                    s += "REMARK MULTIPLICITY-VALUE {m}\n".format(m = self._p._hidden_params["NSR Charges Multiplicities"][nsr_name][1])
+                    if capping_atoms:
+                        s += "REMARK INTRA-MCC 0.0 |  " + '  '.join(capping_atoms) + ' | Remove\n'
+                    s += "REMARK\n"
                     
-                    for i, split_content in enumerate(split_contents):
-                        if 'CHARGE-VALUE' in split_content:
-                            split_contents[i] = "REMARK CHARGE-VALUE {c}\n".format(c = self._p._hidden_params["NSR Charges Multiplicities"][nsr_name][0])
-                        elif 'MULTIPLICITY-VALUE' in split_content:
-                            split_contents[i] = "REMARK MULTIPLICITY-VALUE {m}\n".format(m = self._p._hidden_params["NSR Charges Multiplicities"][nsr_name][1])
-                            if capping_atoms:
-                                split_contents[i] += cap_remark
-                                
-                    p2n_content = ''.join(split_contents)
+                    f = "{:6s}{:5d} {:^4s} {:3s} {:5d}   {: 8.3f}{: 8.3f}{: 8.3f}                     {:s}\n"
+                    for i, a in enumerate(p2n_atoms):
+                        s += f.format("ATOM", i + 1, a.amber, a.residue, a.resnum, a.x, a.y, a.z, a.pdb)
+                        
+                    for i, n in enumerate(p2n_atoms.get_neighbours()):
+                        s += "".join(["CONECT"] + ["{:5d}".format(j + 1) for j in [i] + n]) + "\n"
+                    s += "END\n"
+                            
+                    with open("mod_" + name + "-out.p2n", "w") as p2n_f:
+                        p2n_f.write(s)
 
-                    with open("mod_" + name + "-out.p2n", 'w') as p2n_f:
-                        p2n_f.write(p2n_content)
-
-                        #run_red takes ~1hr to run locally
+                    #run_red takes ~1hr to run locally
                     os.system("sleep 1")
                     if self._p.params["Overwrite RESP Calculation"]:
                         logging.info("Overwriting RESP calculation for {n}...".format(n = nsr_name))
                     else:
                         logging.info("Running RESP calculation for {n}...".format(n = nsr_name))
                     run_red("mod_" + name + "-out.p2n",nodes = 4)
+                    
                     if not os.path.exists("Data-RED/" + rn):
-                        raise RuntimeError("Partial Charge calculation failed for {n}. Scratch directory must be empty".format(n = nsr_name))
+                        if os.path.exists("Data-RED/" + rn2):
+                            rn = rn2
+                        else:
+                            raise RuntimeError("Partial Charge calculation failed for {n}. Scratch directory must be empty".format(n = nsr_name))
+                        
                     logging.info("RESP calculation complete")
-                    gauss_logs = ['Data-RED/' + f for f in os.listdir('Data-RED/') if f.startswith('JOB') and f.endswith('.log')]
+                    gauss_logs = ['Data-RED/' + fl for fl in os.listdir('Data-RED/') if fl.startswith('JOB') and fl.endswith('.log')]
                     for g_log in gauss_logs:
                         with open(g_log, 'r') as g_log_obj:
                             g_log_str = g_log_obj.read()
