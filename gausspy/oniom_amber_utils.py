@@ -228,7 +228,7 @@ class Protein_Parameterisation(object):
                         a.amber = symbol + str(symbols.count(symbol))
                         
                         if a.residue != nsr_name:
-                            capping_atoms.append(i + 1)
+                            capping_atoms.append(str(i + 1))
                         
                     s =  "REMARK\n"
                     s += "REMARK TITLE {n}\n".format(n = name)
