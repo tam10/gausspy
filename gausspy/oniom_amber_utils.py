@@ -33,7 +33,7 @@ class Protein_Parameterisation(object):
                        "Optimised Capping": True,
                        "NSR Protonation Function": self.Utils.pybel_protonate,
                        "pdb2pqr Command": "/Users/tam10/Utilities/pdb2pqr-osx-bin64-2.1.0/pdb2pqr",
-                       "pdb2pqr Options": ["--ff=amber", "--ffout=amber"],
+                       "pdb2pqr Options": ["--ff=amber", "--ffout=amber", "--chain"],
                        #RESP Options
                        "RESP Calculation Directory": "charges/",
                        "Overwrite RESP Calculation": False,
@@ -202,6 +202,16 @@ class Protein_Parameterisation(object):
             
             return prot_atoms
         
+        def align_atom_tags(self, donor, acceptor):
+            resnums = set(acceptor.get_resnums())
+            for resnum in resnums:
+                acceptor_subset = acceptor.take(resnums=resnum, indices_in_tags=True)
+                donor_subset = donor.take(resnums=resnum, indices_in_tags=True)
+                for donor_a in donor_subset:
+                    for acceptor_a in acceptor_subset:
+                        if donor_a == acceptor_a:
+                            acceptor[acceptor_a.tag].tag = donor_a.tag
+            
         def calculate_partial_charges(self, atoms, nsr_name):
             try:
                 self._cd_in(self._p.params["RESP Calculation Directory"])
@@ -572,6 +582,7 @@ class Protein_Parameterisation(object):
             prot_nsrs = []
             
             self.prot_sr = self.Utils.pdb2pqr_protonate(self.initial_atoms, 'nsr_detection')
+            self.Utils.align_atom_tags(self.initial_atoms, self.prot_sr)
             self.params["NSR Resnums"] = self.Utils.detect_nsrs('nsr_detection')
             mc_nsrs = self._hidden_params["Merged Connected NSR Resnum Groups"] = self.Utils.merge_connected_nsr_indices()
             
