@@ -319,7 +319,7 @@ class Protein_Parameterisation(object):
             oniom_extraction.calc.set_job(time=1 ,nodes=1, memory=4000)
             oniom_extraction.calc.start(frc = True)
 
-            atoms = oniom_extraction[oniom_list].take(indices_in_tags = True)
+            atoms = oniom_extraction.take(indices_in_tags = True)[oniom_list]
             with open("model_extraction.log","r") as logfile:
                 lines = logfile.readlines()
 
@@ -340,7 +340,11 @@ class Protein_Parameterisation(object):
                               resnum = link_atom.resnum,
                               amber_charge = link_atom.amber_charge,
                               pdb = 'H')
-
+                
+                model_tag = atoms.take(tags = model_ind, indices_in_tags = True).get_tags()[0]
+                
+                atoms._neighbours[len(atoms) - 1].append(model_tag)
+                atoms._neighbours[model_tag].append(len(atoms) - 1)
 
             self.set_link_ambers(atoms)
             return atoms
@@ -645,7 +649,9 @@ class Protein_Parameterisation(object):
         finally:
             self.Utils._cd_out()
             
-    def get_nsr_charges(self):
+    def get_nsr_charges(self, copy_ambers=False):
+        """Calculate partial charges for non-standard residues.
+        Set copy_ambers to True if there are issues with the amber atoms calculated for protonated atoms"""
         for nsr_name in self.params["NSR Names"]:
             prot_nsr = self.protonated_nsrs[nsr_name]
             self.pc_nsrs[nsr_name] = self.Utils.calculate_partial_charges(prot_nsr, nsr_name)
@@ -660,6 +666,8 @@ class Protein_Parameterisation(object):
                             a.amber_charge = b.amber_charge
                             if b.amber_charge == 0:
                                 logging.warning("Partial charge of 0 added to atom {s} ({i}) in {n}".format(s = a.symbol, i = a.index, n = nsr_name))
+                            if copy_ambers:
+                                a.amber = b.amber
                             
     def get_model_region(self, atoms = None):
         
