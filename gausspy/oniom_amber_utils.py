@@ -25,6 +25,7 @@ class Protein_Parameterisation(object):
         
         self.params = {"NSR Resnums": None,
                        "NSR Names": "CR",
+                       "Remove Invalid PDB Characters": True,
                        #Protonation Options
                        "Protonation Directory": "protonation/",
                        "pH": None,
@@ -71,9 +72,19 @@ class Protein_Parameterisation(object):
             raise RuntimeError("AMBERHOME not set in os.environ")
         
         alpha_nums = string.ascii_letters + string.digits
-        invalid_pdbs = '; '.join([': '.join([str(a.index), a.pdb]) for a in atoms if any([s not in alpha_nums for s in a.pdb])])
-        if len(invalid_pdbs) > 0:
-            logging.warning('Invalid characters found in PDB Atom Types in atoms:\n' + invalid_pdbs + '\nThese atoms will cause errors on running Gaussian')
+        if self.params["Remove Invalid PDB Characters"]:
+            replaced_pdbs = []
+            for a in atoms:
+                old = a.pdb
+                a.pdb = "".join([c for c in old if c in alpha_nums])
+                if old != a.pdb:
+                    replaced_pdbs += ['{:d}: {:s}->{:s}'.format(a.index, old, a.pdb)]
+            if len(replaced_pdbs) > 0:
+                logging.info("Replaced the following PDB Atom Types:\n" + "; ".join(replaced_pdbs))
+        else:
+            invalid_pdbs = '; '.join([': '.join([str(a.index), a.pdb]) for a in atoms if any([s not in alpha_nums for s in a.pdb])])
+            if len(invalid_pdbs) > 0:
+                logging.warning("Invalid characters found in PDB Atom Types in atoms:\n" + invalid_pdbs + "\nThese atoms will cause errors on running Gaussian")
         
         blank_pdbs = ', '.join([str(a.index) for a in atoms if a.pdb == ''])  
         if len(blank_pdbs) > 0:
