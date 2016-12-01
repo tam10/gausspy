@@ -52,7 +52,6 @@ class Protein_Parameterisation(object):
                                "RED mol2 Filename": "Mol_m1-o1-sm.mol2",
                                "Secondary RED mol2 Filename": "Mol_m1-o1.mol2",
                                "Final Model Atom Numbers": None,
-                               "Original Directory": os.getcwd(),
                                "Interface Nitrogens": [],
                                "Minimum Chromophore Size": 8,
                                "NSR Charges Multiplicities": None}
@@ -213,8 +212,7 @@ class Protein_Parameterisation(object):
                             acceptor[acceptor_a.tag].tag = donor_a.tag
             
         def calculate_partial_charges(self, atoms, nsr_name):
-            try:
-                self._cd_in(self._p.params["RESP Calculation Directory"])
+            with _CD(self._p.params["RESP Calculation Directory"]):
                 name = atoms.info["name"]
                 if name is None:
                     name = atoms.get_chemical_formula()
@@ -310,8 +308,6 @@ class Protein_Parameterisation(object):
                             
                 
                 return nsr_charges
-            finally:
-                self._cd_out()
                 
         def get_oniom_model_from_indices(self, atoms, oniom_list):
             """
@@ -563,22 +559,11 @@ class Protein_Parameterisation(object):
                 return get_amber_params_from_frcmod(database_name)
             else:
                 raise RuntimeError("Database type not understood")
-                
-        def _cd_in(self, directory):
-            self._p._hidden_params["Original Directory"] = os.getcwd()
-            if not os.path.exists(directory):
-                logging.info("Created the following directory: {d}".format(d = directory))
-                os.mkdir(directory)
-            os.chdir(directory)
-        
-        def _cd_out(self):
-            os.chdir(self._p._hidden_params["Original Directory"])
         
     def auto_protonate(self):
         
-        try:    
+        with _CD(self.params["Protonation Directory"]):
             nns = self.params["NSR Names"]
-            self.Utils._cd_in(self.params["Protonation Directory"])
             prot_nsrs = []
             
             self.prot_sr = self.Utils.pdb2pqr_protonate(self.initial_atoms, 'nsr_detection')
@@ -657,9 +642,6 @@ class Protein_Parameterisation(object):
                     
             logging.info("Protonation Complete")
             
-        finally:
-            self.Utils._cd_out()
-            
     def get_nsr_charges(self, copy_ambers=False):
         """Calculate partial charges for non-standard residues.
         Set copy_ambers to True if there are issues with the amber atoms calculated for protonated atoms"""
@@ -682,8 +664,7 @@ class Protein_Parameterisation(object):
                             
     def get_model_region(self, atoms = None):
         
-        try:
-            self.Utils._cd_in(self.params["Model Extraction Directory"])
+        with _CD(self.params["Model Extraction Directory"]):
         
             if atoms == None:
                 atoms = self.protonated_atoms
@@ -711,12 +692,9 @@ class Protein_Parameterisation(object):
             self.model_region = model_region
             logging.info("Model region with {n} atoms extracted using Final Atom Model Numbers".format(n = len(model_region)))
                 
-        finally:
-            self.Utils._cd_out()
     
     def add_atom_parameters(self, atoms, name):
-        try:
-            self.Utils._cd_in(self.params["Parameterisation Directory"])
+        with _CD(self.params["Parameterisation Directory"]):
             if not name:
                 name = atoms.info.get("name")
             if not name:
@@ -754,19 +732,13 @@ class Protein_Parameterisation(object):
                 logging.warning('\nErrors found in %s:\n' % (name) + warn_str)
 
             self.mm_parameters[name] = params
-
-        finally:
-            self.Utils._cd_out()
             
     def add_database_parameters(self):
-        try:
-            self.Utils._cd_in(self.params["Parameterisation Directory"])
+        with _CD(self.params["Parameterisation Directory"]):
             for db in self.params["Parameterisation Databases"]:
                 self.mm_parameters[db["name"]] = self.Utils.get_database_parameters(db["name"], db["type"])
                 logging.info("Added parameters for {n}".format(n = db["name"]))
             
-        finally:
-            self.Utils._cd_out()
         
     def auto_parameterise(self):
         self.add_database_parameters()
@@ -870,3 +842,18 @@ class Protein_Parameterisation(object):
                 print("Could not resolve: " + mp_line)
                 
         return {"types": types, "bondLengths": bondLengths, "bondAngles": bondAngles, "resnums": list(resnums), "allAtoms": list(allAtoms)}
+
+class _CD():
+    
+    def __init__(self, directory):
+        self.cwd = os.getcwd()
+        self.d = directory
+        
+    def __enter__(self):
+        if not os.path.exists(self.d):
+            os.mkdir(self.d)
+            logging.info("Created directory: {d}".format(d = self.d))
+        os.chdir(self.d)
+        
+    def __exit__(self, type, value, traceback):
+        os.chdir(self.cwd)
