@@ -221,7 +221,7 @@ class Protein_Parameterisation(object):
                 mod_rn = nsr_name + "_partial_charges.mol2"
                 rds = ['./',nsr_name + '_Data-RED/','../','../' + nsr_name + '_Data-RED/']
                 rn_path = [rd + mod_rn for rd in rds if os.path.exists(rd + mod_rn)]
-                prot_out_path = [rd + name + "-out.p2n" for rd in rds if os.path.exists(rd + name + "-out.p2n")]
+                prot_out_path = [rd + name + "-out.p2n" for rd in rds if os.path.exists(rd + "mod_" + name + "-out.p2n")]
 
                 if self._p.params["Overwrite RESP Calculation"] or len(rn_path) == 0 or len(prot_out_path) == 0:
                     p2n_atoms = atoms.take()
